@@ -1,50 +1,190 @@
 /*
- * Prova de conceito: uma tarefa acordada pelo DMA do ADC a cada 10 ms,
- * que copia a tensão da sonda para a largura do pulso do injetor e
- * publica as leituras no CAN (ID 0x100).
+ * Tarefas da ECU.
+ *
+ * ControlTask (prioridade 3): acordada pelo DMA do ADC a cada 10 ms. Faz a média
+ *   das amostras, converte em λ/TPS/RPM, calcula o tempo de injeção, atualiza o
+ *   TIM2 e mede os próprios tempos.
+ * CanTask (prioridade 2): a cada 20 ms publica estado e sensores, a cada 100 ms
+ *   os tempos; trata os comandos do painel (0x200) e escreve o log na USART.
+ *
+ * Os dados trocados entre as duas ficam em `shared`, protegidos por seção crítica.
  */
+#include <string.h>
+
 #include "ecu_hw.h"
 #include "app.h"
+#include "can_codec.h"
+#include "params.h"
+#include "sensors.h"
+#include "timing_stats.h"
 
+#define CAN_PERIOD_MS        20u
+#define TEMPOS_A_CADA        5u    /* 0x110 a cada 5 × 20 ms */
+#define LOG_A_CADA           25u   /* log a cada 25 × 20 ms */
+#define TI_PROVISORIO_US     3000u /* etapa 2: pulso fixo até o controle (etapa 4) */
+
+typedef struct {
+    /* saídas da ControlTask */
+    uint16_t adc[ADC_NUM_CHANNELS];
+    float lambda_med;
+    float tps;
+    float rpm;
+    uint32_t ti_us;
+    float correcao;
+    timing_stats_t tempos;
+    /* comandos do painel */
+    float lambda_alvo;
+    modo_t modo;
+    bool zerar_tempos;
+} ecu_shared_t;
+
+static ecu_shared_t shared;
 static TaskHandle_t control_task;
+
+static void control_step(uint32_t ativacoes_puladas)
+{
+    uint32_t inicio = timing_now_us();
+    uint32_t liberacao = adc_dma_block_timestamp_us();
+
+    uint16_t adc[ADC_NUM_CHANNELS];
+    adc_dma_block_average(adc);
+    float lambda_med = sensor_lambda(adc[ADC_IDX_LAMBDA]);
+    float tps = sensor_tps(adc[ADC_IDX_TPS]);
+    float rpm = sensor_rpm(adc[ADC_IDX_RPM]);
+
+    uint32_t ti_us = TI_PROVISORIO_US;
+    injector_set(engine_cycle_us(rpm), ti_us);
+
+    taskENTER_CRITICAL();
+    memcpy(shared.adc, adc, sizeof(adc));
+    shared.lambda_med = lambda_med;
+    shared.tps = tps;
+    shared.rpm = rpm;
+    shared.ti_us = ti_us;
+    shared.correcao = 0.0f;
+    if(shared.zerar_tempos) {
+        shared.zerar_tempos = false;
+        timing_stats_reset(&shared.tempos);
+    }
+    taskEXIT_CRITICAL();
+
+    uint32_t fim = timing_now_us();
+    taskENTER_CRITICAL();
+    timing_stats_update(&shared.tempos, liberacao, inicio, fim, ativacoes_puladas);
+    taskEXIT_CRITICAL();
+}
 
 static void control_loop(void *arg)
 {
     (void)arg;
-    uint32_t blocks = 0;
 
-    adc_dma_init(control_task);
+    /* Periféricos iniciados aqui, com o escalonador rodando: antes dele o
+     * FreeRTOS deixa as interrupções mascaradas e o HAL_GetTick não anda.
+     * A CanTask tem prioridade menor, então só roda depois disto. */
     injector_init();
     if(!canbus_init()) {
         ecu_fatal("CAN init");
     }
+    adc_dma_init(xTaskGetCurrentTaskHandle());
     log_printf("ECU pronta\r\n");
 
     for(;;) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        uint16_t raw[ADC_NUM_CHANNELS];
-        adc_dma_block_average(raw);
+        uint32_t n = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        control_step(n > 1u ? n - 1u : 0u);
+    }
+}
 
-        uint32_t lambda_mv = (raw[ADC_IDX_LAMBDA] * ADC_VREF_MV + ADC_FULL_SCALE / 2u) / ADC_FULL_SCALE;
-        injector_set(60000u, lambda_mv);
+static void handle_command(const can_frame_t *frame)
+{
+    msg_painel_ecu_t cmd;
+    if(frame->id != CAN_ID_PAINEL_ECU || !can_unpack_painel_ecu(frame->data, frame->len, &cmd)) {
+        return;
+    }
+    taskENTER_CRITICAL();
+    if(cmd.lambda_alvo >= LAMBDA_ALVO_MIN && cmd.lambda_alvo <= LAMBDA_ALVO_MAX) {
+        shared.lambda_alvo = cmd.lambda_alvo;
+    }
+    if(cmd.modo == MODO_MALHA_ABERTA || cmd.modo == MODO_MALHA_FECHADA) {
+        shared.modo = (modo_t)cmd.modo;
+    }
+    if(cmd.flags & PAINEL_FLAG_ZERAR_TEMPOS) {
+        shared.zerar_tempos = true;
+    }
+    taskEXIT_CRITICAL();
+    log_printf("CMD alvo=%u modo=%u flags=%u\r\n",
+               (unsigned)(cmd.lambda_alvo * 1000.0f + 0.5f), cmd.modo, cmd.flags);
+}
 
-        can_frame_t frame = {.id = 0x100, .len = 6};
-        for(uint32_t c = 0; c < ADC_NUM_CHANNELS; c++) {
-            frame.data[2 * c] = (uint8_t)(raw[c] & 0xFFu);
-            frame.data[2 * c + 1] = (uint8_t)(raw[c] >> 8);
+static void can_loop(void *arg)
+{
+    (void)arg;
+    uint32_t ciclo = 0;
+    uint8_t contador = 0;
+    TickType_t wake = xTaskGetTickCount();
+
+    for(;;) {
+        can_frame_t rx;
+        while(canbus_receive(&rx, 0)) {
+            handle_command(&rx);
         }
-        canbus_send(&frame);
 
-        if(++blocks % 10u == 0u) {
-            log_printf("ADC lambda=%u tps=%u rpm=%u pulse=%lu us\r\n",
-                       raw[ADC_IDX_LAMBDA], raw[ADC_IDX_TPS], raw[ADC_IDX_RPM],
-                       (unsigned long)injector_pulse_us());
+        ecu_shared_t s;
+        taskENTER_CRITICAL();
+        s = shared;
+        taskEXIT_CRITICAL();
+
+        msg_ecu_estado_t estado = {
+            .lambda_med = s.lambda_med,
+            .lambda_alvo = s.lambda_alvo,
+            .ti_us = s.ti_us,
+            .correcao = s.correcao,
+            .modo = s.modo,
+            .contador = contador++,
+        };
+        can_frame_t tx = {.id = CAN_ID_ECU_ESTADO, .len = 8};
+        can_pack_ecu_estado(&estado, tx.data);
+        canbus_send(&tx);
+
+        msg_ecu_sensores_t sens = {.rpm = s.rpm, .tps = s.tps};
+        tx = (can_frame_t){.id = CAN_ID_ECU_SENSORES, .len = 4};
+        can_pack_ecu_sensores(&sens, tx.data);
+        canbus_send(&tx);
+
+        if(ciclo % TEMPOS_A_CADA == 0u) {
+            msg_ecu_tempos_t tempos = {
+                .periodo_us = (uint16_t)(s.tempos.periodo_us > 0xFFFFu ? 0xFFFFu : s.tempos.periodo_us),
+                .jitter_max_us = (uint16_t)(s.tempos.jitter_max_us > 0xFFFFu ? 0xFFFFu : s.tempos.jitter_max_us),
+                .exec_max_us = (uint16_t)(s.tempos.exec_max_us > 0xFFFFu ? 0xFFFFu : s.tempos.exec_max_us),
+                .deadlines_perdidos = (uint16_t)(s.tempos.deadlines_perdidos > 0xFFFFu ? 0xFFFFu : s.tempos.deadlines_perdidos),
+            };
+            tx = (can_frame_t){.id = CAN_ID_ECU_TEMPOS, .len = 8};
+            can_pack_ecu_tempos(&tempos, tx.data);
+            canbus_send(&tx);
         }
+
+        if(ciclo % LOG_A_CADA == 0u) {
+            log_printf("ADC lambda=%u tps=%u rpm=%u ti=%lu us\r\n",
+                       s.adc[ADC_IDX_LAMBDA], s.adc[ADC_IDX_TPS], s.adc[ADC_IDX_RPM],
+                       (unsigned long)s.ti_us);
+            log_printf("TEMPOS periodo=%lu jitter=%lu exec=%lu perdidos=%lu n=%lu\r\n",
+                       (unsigned long)s.tempos.periodo_us, (unsigned long)s.tempos.jitter_max_us,
+                       (unsigned long)s.tempos.exec_max_us, (unsigned long)s.tempos.deadlines_perdidos,
+                       (unsigned long)s.tempos.ativacoes);
+        }
+        ciclo++;
+        xTaskDelayUntil(&wake, pdMS_TO_TICKS(CAN_PERIOD_MS));
     }
 }
 
 void app_start(void)
 {
-    xTaskCreate(control_loop, "control", 256, NULL, 3, &control_task);
+    shared.lambda_alvo = LAMBDA_ALVO_PADRAO;
+    shared.modo = MODO_MALHA_FECHADA;
+    timing_stats_init(&shared.tempos, CONTROL_PERIOD_US);
+
+    if(xTaskCreate(control_loop, "control", 256, NULL, 3, &control_task) != pdPASS ||
+       xTaskCreate(can_loop, "can", 320, NULL, 2, NULL) != pdPASS) {
+        ecu_fatal("tasks");
+    }
     vTaskStartScheduler();
 }

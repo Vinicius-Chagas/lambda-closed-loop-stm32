@@ -9,6 +9,14 @@ env:
   RENODE_IMAGE: antmicro/renode@sha256:b30df3a8ec4eb6c793cca6ed62733c3619363de52ffd9f52de98a11f3500471b
 
 jobs:
+  unit:
+    name: Testes unitários
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unity (controle em C)
+        run: make test-unit-c
+
   firmware:
     name: Firmware (build)
     runs-on: ubuntu-24.04

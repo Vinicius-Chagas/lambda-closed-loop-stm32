@@ -1,0 +1,58 @@
+VERSION ""
+
+NS_ :
+
+BS_:
+
+BU_: ECU PLANTA PAINEL
+
+BO_ 256 ECU_ESTADO: 8 ECU
+ SG_ LambdaMedido : 0|16@1+ (0.001,0) [0|65.535] "" PAINEL
+ SG_ LambdaAlvo : 16|16@1+ (0.001,0) [0|65.535] "" PAINEL
+ SG_ TempoInjecao : 32|16@1+ (1,0) [0|65535] "us" PAINEL
+ SG_ CorrecaoPI : 48|8@1- (0.25,0) [-25|25] "%" PAINEL
+ SG_ Modo : 56|1@1+ (1,0) [0|1] "" PAINEL
+ SG_ Contador : 60|4@1+ (1,0) [0|15] "" PAINEL
+
+BO_ 257 ECU_SENSORES: 4 ECU
+ SG_ Rotacao : 0|16@1+ (1,0) [0|8000] "rpm" PAINEL
+ SG_ Borboleta : 16|16@1+ (0.1,0) [0|100] "%" PAINEL
+
+BO_ 272 ECU_TEMPOS: 8 ECU
+ SG_ Periodo : 0|16@1+ (1,0) [0|65535] "us" PAINEL
+ SG_ JitterMax : 16|16@1+ (1,0) [0|65535] "us" PAINEL
+ SG_ ExecucaoMax : 32|16@1+ (1,0) [0|65535] "us" PAINEL
+ SG_ DeadlinesPerdidos : 48|16@1+ (1,0) [0|65535] "" PAINEL
+
+BO_ 512 PAINEL_ECU: 4 PAINEL
+ SG_ LambdaAlvo : 0|16@1+ (0.001,0) [0|65.535] "" ECU
+ SG_ Modo : 16|8@1+ (1,0) [0|255] "" ECU
+ SG_ ZerarTempos : 24|1@1+ (1,0) [0|1] "" ECU
+
+BO_ 768 PLANTA_ESTADO: 8 PLANTA
+ SG_ LambdaCilindro : 0|16@1+ (0.001,0) [0|65.535] "" PAINEL
+ SG_ LambdaSonda : 16|16@1+ (0.001,0) [0|65.535] "" PAINEL
+ SG_ AtrasoTransporte : 32|16@1+ (1,0) [0|65535] "ms" PAINEL
+ SG_ VazaoBico : 48|8@1+ (1,0) [0|255] "%" PAINEL
+ SG_ VazamentoAr : 56|8@1+ (1,0) [0|255] "mg" PAINEL
+
+BO_ 784 PAINEL_PLANTA: 3 PAINEL
+ SG_ Acelerador : 0|8@1+ (1,0) [0|255] "%" PLANTA
+ SG_ AjusteBico : 8|8@1- (1,0) [-128|127] "%" PLANTA
+ SG_ VazamentoAr : 16|8@1+ (1,0) [0|255] "mg" PLANTA
+
+CM_ BO_ 256 "Estado da ECU, a cada 20 ms.";
+CM_ SG_ 256 Modo "0 = malha aberta, 1 = malha fechada.";
+CM_ BO_ 257 "Sensores convertidos pela ECU, a cada 20 ms.";
+CM_ BO_ 272 "Tempos da ControlTask desde a última zeragem, a cada 100 ms.";
+CM_ SG_ 272 Periodo "Último período medido entre dois inícios da ControlTask.";
+CM_ BO_ 512 "Comando do painel para a ECU.";
+CM_ SG_ 512 LambdaAlvo "0 = mantém; aceito entre 0,80 e 1,20.";
+CM_ SG_ 512 Modo "0 = aberta, 1 = fechada, 255 = mantém.";
+CM_ BO_ 768 "Estado da planta, a cada 20 ms de tempo simulado.";
+CM_ SG_ 768 VazaoBico "Vazão do bico em relação ao nominal (100 = bico novo).";
+CM_ BO_ 784 "Comando do painel para a planta.";
+CM_ SG_ 784 Acelerador "0..100; 255 = mantém.";
+CM_ SG_ 784 AjusteBico "Desvio da vazão do bico, -50..+50 %; -128 = mantém.";
+CM_ SG_ 784 VazamentoAr "Ar não medido por cilindro; 255 = mantém.";
+VAL_ 256 Modo 0 "MALHA_ABERTA" 1 "MALHA_FECHADA" ;

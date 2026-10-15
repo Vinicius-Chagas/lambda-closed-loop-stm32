@@ -4,9 +4,9 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 
 | Etapa | Status |
 |---|---|
-| 0. Prova de conceito | ✅ local · CI: ponte vcan0 aguardando |
+| 0. Prova de conceito | ✅ local · CI: build e Robot verdes; ponte vcan0 em ajuste |
 | 1. Equações | ✅ |
-| 2. Periféricos | ⏳ |
+| 2. Periféricos | ✅ local |
 | 3. Planta (Go) | ⏳ |
 | 4. Controle | ⏳ |
 | 5. Tempos + e2e | ⏳ |
@@ -28,7 +28,7 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 |---|---|
 | `make firmware` | compila sem avisos (`-Wall -Wextra -Werror`); FLASH 19,5 KB / 128 KB, RAM 9,6 KB / 16 KB |
 | `make test-renode` | 4/4 testes OK: boot; ADC lê 1,65/0,5/3,0 V → 2048/620/3723 e depois 0,6/2,0/1,2 V; TIM2 ARR = 59999 e CCR1 = 1650; frame CAN 0x100 com os 3 valores do ADC |
-| CI `vcan` (`scripts/check-vcan-bridge.sh`) | aguardando a primeira execução (este container não tem SocketCAN) |
+| CI `vcan` (`scripts/check-vcan-bridge.sh`) | 1ª execução: a ponte funciona (frames `100#…` no `vcan0` do runner), mas só 3 frames chegaram antes de parar; diagnóstico em andamento (o script agora imprime o log do Renode) |
 
 **Lockstep pelo monitor do Renode** (cliente Python provisório, TCP_NODELAY, 1 comando composto por
 passo: `Volts; RunFor; ReadDoubleWord`):
@@ -72,6 +72,42 @@ as medições.
 de transporte `Td = 180/RPM + 0,020 s`, sonda banda larga de 1ª ordem (τ = 100 ms), escalas dos
 sensores, cálculo do tempo de injeção (tabela + PI) e todos os parâmetros numéricos. Os mesmos valores
 vão para `go/internal/engine/params.go` e `firmware/control/params.h` nas etapas 3 e 4.
+
+## Etapa 2 — Periféricos e tarefas
+
+**Feito**
+- `ControlTask` (prioridade 3), acordada pelo DMA a cada 10 ms: média de 10 amostras por canal,
+  conversão em λ/TPS/RPM (`control/sensors.c`), período do TIM2 = ciclo do motor (120/RPM),
+  pulso provisório fixo de 3000 µs (o controle entra na etapa 4) e medição dos próprios tempos
+  (`control/timing_stats.c`, base de 1 µs no TIM7).
+- `CanTask` (prioridade 2), a cada 20 ms: frames 0x100 (estado) e 0x101 (sensores); 0x110 (tempos)
+  a cada 100 ms; trata o comando 0x200 do painel (λ alvo, modo, zerar tempos); log na USART a cada 0,5 s.
+- Frames definidos em `can/lambda.dbc` e codificados em `control/can_codec.c`.
+- Testes unitários Unity no host (`firmware/tests`, `make test-unit`): conversões dos sensores, layout
+  dos frames, estatísticas de tempo (inclusive estouro do contador de 32 bits).
+- `renode/can_send.py`: comando de monitor `can_send <id> "<hex>"` para injetar frames na ECU nos testes.
+
+**Verificação**
+
+| Comando | Resultado |
+|---|---|
+| `make firmware` | sem avisos; FLASH 24,2 KB, RAM 9,7 KB |
+| `make test-unit` | 3/3 suítes Unity OK |
+| `make test-renode` | 6/6 OK: boot; ADC 3 canais via DMA; TIM2 com ciclo de 16,5 ms (7273 rpm) e 150 ms (marcha lenta, > 16 bits); frames 0x100/0x101 com os valores esperados; comando 0x200 aceito e valores fora da faixa ignorados; tempos da ControlTask |
+
+Tempos da `ControlTask` medidos no Renode (2 s simulados após zerar):
+
+| Métrica | Medido | Meta |
+|---|---|---|
+| Período | 10 000 µs | 10 ms |
+| Jitter máximo | 10 µs | ≤ 100 µs |
+| Execução máxima | 71 µs | ≤ 1 ms |
+| Deadlines perdidos | 0 | 0 |
+
+**Desvios**
+- Estado e sensores em dois frames (0x100 e 0x101): os campos do plano não cabem em 8 bytes.
+- Periféricos iniciados dentro da `ControlTask` (antes do escalonador o FreeRTOS mascara as
+  interrupções e o `HAL_GetTick` fica parado).
 
 ## Pendências para a equipe
 

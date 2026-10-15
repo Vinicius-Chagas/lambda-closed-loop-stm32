@@ -18,8 +18,14 @@ docker run -d --name "$NAME" --network host -v "$PWD":/work -w /work "$IMAGE" \
     -e "\$can_if=\"$IF\"; include @renode/lambda-vcan.resc; sysbus.adc.lambdaSensor Volts 1.65; start" >/dev/null
 
 # 5 frames 0x100 em até 60 s (inclui a partida do Renode).
-if ! timeout 60 candump -n 5 -L "$IF,100:7FF" | tee build/vcan-frames.log; then
-    echo "FALHA: nenhum frame 0x100 em $IF" >&2
+# Mostra também os demais IDs (útil para diagnóstico).
+timeout 30 candump -L "$IF" > build/vcan-todos.log 2>&1 &
+if ! timeout 60 candump -n 20 -L "$IF,100:7FF" | tee build/vcan-frames.log; then
+    echo "FALHA: menos de 20 frames 0x100 em $IF" >&2
+    echo "--- log do Renode ---" >&2
+    docker logs "$NAME" 2>&1 | tail -60 >&2
+    echo "--- todos os frames em $IF ---" >&2
+    head -40 build/vcan-todos.log >&2 || true
     exit 1
 fi
 echo "OK: frames da ECU chegaram em $IF"
