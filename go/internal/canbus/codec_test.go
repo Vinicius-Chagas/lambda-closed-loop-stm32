@@ -73,3 +73,22 @@ func TestSaturacao(t *testing.T) {
 		t.Errorf("saturação = %+v", d)
 	}
 }
+
+func TestSensoresETemposIdaEVolta(t *testing.T) {
+	s, err := DecodeEcuSensores(EcuSensores{RPM: 1996.4, TPS: 23.07}.Frame())
+	if err != nil || s.RPM != 1996 || math.Abs(s.TPS-23.1) > 1e-9 {
+		t.Errorf("sensores %+v %v", s, err)
+	}
+	in := EcuTempos{PeriodoUs: 10000, JitterMaxUs: 3, ExecMaxUs: 160, DeadlinesPerdidos: 1}
+	if out, err := DecodeEcuTempos(in.Frame()); err != nil || out != in {
+		t.Errorf("tempos %+v %v", out, err)
+	}
+}
+
+func TestPainelEcuIdaEVolta(t *testing.T) {
+	in := PainelEcu{LambdaAlvo: 1.05, Modo: MalhaAberta, ZerarTempos: true}
+	out, err := DecodePainelEcu(in.Frame())
+	if err != nil || math.Abs(out.LambdaAlvo-1.05) > 1e-9 || out.Modo != in.Modo || !out.ZerarTempos {
+		t.Errorf("%+v %v", out, err)
+	}
+}

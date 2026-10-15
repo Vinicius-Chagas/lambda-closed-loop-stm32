@@ -146,23 +146,6 @@ func receiveCommands(bus *canbus.Bus, p *plant.Plant) {
 		if err != nil {
 			continue
 		}
-		p.Apply(commandFrom(m))
+		p.Apply(plant.CommandFromCAN(m))
 	}
-}
-
-func commandFrom(m canbus.PainelPlanta) plant.Command {
-	var c plant.Command
-	if m.Acelerador != canbus.ManterAcelerador {
-		v := float64(min(m.Acelerador, 100))
-		c.TPS = &v
-	}
-	if m.AjusteBico != canbus.ManterBico {
-		v := 1 + float64(max(min(m.AjusteBico, 50), -50))/100
-		c.FatorBico = &v
-	}
-	if m.VazamentoMg != canbus.ManterVazamento {
-		v := float64(m.VazamentoMg)
-		c.VazamentoMg = &v
-	}
-	return c
 }

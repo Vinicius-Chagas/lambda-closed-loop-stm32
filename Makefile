@@ -3,7 +3,7 @@ RENODE_IMAGE ?= antmicro/renode@sha256:b30df3a8ec4eb6c793cca6ed62733c3619363de52
 DOCKER_RUN   = docker run --rm -v $(CURDIR):/work -w /work --user $(shell id -u):$(shell id -g) -e HOME=/tmp
 FW_BUILD     = firmware/build
 
-.PHONY: all firmware test-unit test-unit-c test-unit-go test-sil test-integration test-renode test-renode-go test-e2e run grafico renode clean
+.PHONY: all firmware test-unit test-unit-c test-unit-go test-sil test-integration test-renode test-renode-go test-e2e run painel painel-demo painel-captura grafico renode clean
 
 all: firmware
 
@@ -53,6 +53,19 @@ test-e2e: firmware
 # Bancada para a feira (ECU + planta no vcan0). O painel roda à parte (make painel).
 run: firmware
 	./scripts/bancada.sh -csv build/corrida.csv
+
+# Painel (raylib). Com a bancada no ar (make run), em outro terminal:
+painel:
+	cd go && go run ./cmd/painel
+
+# Painel sem Renode nem vcan0: o controle C roda dentro dele (SIL).
+painel-demo:
+	cd go && go run ./cmd/painel -demo
+
+# Captura da tela do painel em modo demo (precisa de Xvfb): docs/painel.png
+painel-captura:
+	cd go && go build -o ../build/painel ./cmd/painel
+	xvfb-run -a -s "-screen 0 1280x720x24" ./build/painel -demo -captura $(CURDIR)/docs/painel.png -apos 9
 
 # Gráfico SVG de uma corrida: make grafico CSV=build/corrida.csv
 CSV ?= build/corrida.csv

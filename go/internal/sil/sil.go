@@ -56,6 +56,10 @@ func New() *ECU {
 func (ecu *ECU) SetAlvo(lambda float64) { C.ecu_set_alvo(&ecu.e, C.float(lambda)) }
 func (ecu *ECU) SetModo(modo int)       { C.ecu_set_modo(&ecu.e, C.modo_t(modo)) }
 
+// Alvo e Modo são os valores em uso pela ECU.
+func (ecu *ECU) Alvo() float64 { return float64(ecu.e.lambda_alvo) }
+func (ecu *ECU) Modo() int     { return int(ecu.e.modo) }
+
 // Saida devolve o resultado do último período de controle.
 func (ecu *ECU) Saida() Saida { return ecu.saida }
 

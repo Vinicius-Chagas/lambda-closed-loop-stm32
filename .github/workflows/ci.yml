@@ -6,6 +6,10 @@ on:
   pull_request:
 
 env:
+  # bibliotecas do raylib (painel) + Xvfb para a captura de tela
+  PAINEL_DEPS: >-
+    libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+    libwayland-dev libxkbcommon-dev xvfb
   RENODE_IMAGE: antmicro/renode@sha256:b30df3a8ec4eb6c793cca6ed62733c3619363de52ffd9f52de98a11f3500471b
 
 jobs:
@@ -20,8 +24,18 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-      - name: Go (planta, CAN, cliente do Renode)
+      - name: Bibliotecas do painel (raylib)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $PAINEL_DEPS
+      - name: Go (planta, SIL, CAN, painel)
         run: make test-unit-go
+      - name: Painel em modo demo (captura de tela)
+        run: |
+          cd go && go build -o ../build/painel ./cmd/painel
+          cd .. && xvfb-run -a -s "-screen 0 1280x720x24" ./build/painel -demo -captura "$PWD/build/painel-demo.png" -apos 9
+      - uses: actions/upload-artifact@v4
+        with:
+          name: painel-demo
+          path: build/painel-demo.png
 
   firmware:
     name: Firmware (build)
@@ -79,7 +93,7 @@ jobs:
       - name: vcan0 + can-utils
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends can-utils
+          sudo apt-get install -y --no-install-recommends can-utils $PAINEL_DEPS
           sudo modprobe vcan || { sudo apt-get install -y "linux-modules-extra-$(uname -r)" && sudo modprobe vcan; }
           ./scripts/setup-vcan.sh vcan0
       - name: Baixar imagem do Renode
@@ -93,6 +107,14 @@ jobs:
         run: ./scripts/check-vcan-bridge.sh vcan0
       - name: ECU + planta + painel pelo CAN
         run: ./scripts/e2e.sh
+      - name: Painel na bancada real (captura de tela)
+        run: |
+          (cd go && go build -o ../build/painel ./cmd/painel)
+          BANCADA_NOME=lambda-painel BANCADA_LOG=build/e2e/renode-painel.log \
+            scripts/bancada.sh -can vcan0 > build/e2e/planta-painel.log 2>&1 &
+          # o painel espera os frames; aplica o bico −20 % aos 15 s e captura aos 30 s
+          xvfb-run -a -s "-screen 0 1280x720x24" ./build/painel -can vcan0 -captura "$PWD/build/e2e/painel-vcan.png" -apos 30
+          kill %1 || true; wait || true
       - name: Gráfico da corrida
         if: always()
         run: test -f build/e2e/corrida.csv && make grafico CSV=build/e2e/corrida.csv || true

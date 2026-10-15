@@ -124,6 +124,14 @@ func DecodeEcuEstado(f can.Frame) (EcuEstado, error) {
 	}, nil
 }
 
+// Frame codifica os sensores lidos pela ECU (usado pelo modo demonstração do painel).
+func (m EcuSensores) Frame() can.Frame {
+	f := frame(IDEcuSensores, 4)
+	binary.LittleEndian.PutUint16(f.Data[0:], u16(m.RPM, 1))
+	binary.LittleEndian.PutUint16(f.Data[2:], u16(m.TPS, 0.1))
+	return f
+}
+
 // DecodeEcuSensores lê o frame 0x101.
 func DecodeEcuSensores(f can.Frame) (EcuSensores, error) {
 	if err := check(f, IDEcuSensores, 4); err != nil {
@@ -133,6 +141,16 @@ func DecodeEcuSensores(f can.Frame) (EcuSensores, error) {
 		RPM: float64(binary.LittleEndian.Uint16(f.Data[0:])),
 		TPS: float64(binary.LittleEndian.Uint16(f.Data[2:])) * 0.1,
 	}, nil
+}
+
+// Frame codifica os tempos da ControlTask.
+func (m EcuTempos) Frame() can.Frame {
+	f := frame(IDEcuTempos, 8)
+	binary.LittleEndian.PutUint16(f.Data[0:], m.PeriodoUs)
+	binary.LittleEndian.PutUint16(f.Data[2:], m.JitterMaxUs)
+	binary.LittleEndian.PutUint16(f.Data[4:], m.ExecMaxUs)
+	binary.LittleEndian.PutUint16(f.Data[6:], m.DeadlinesPerdidos)
+	return f
 }
 
 // DecodeEcuTempos lê o frame 0x110.
@@ -157,6 +175,18 @@ func (m PainelEcu) Frame() can.Frame {
 		f.Data[3] = 1
 	}
 	return f
+}
+
+// DecodePainelEcu lê o frame 0x200.
+func DecodePainelEcu(f can.Frame) (PainelEcu, error) {
+	if err := check(f, IDPainelEcu, 4); err != nil {
+		return PainelEcu{}, err
+	}
+	return PainelEcu{
+		LambdaAlvo:  float64(binary.LittleEndian.Uint16(f.Data[0:])) * 0.001,
+		Modo:        f.Data[2],
+		ZerarTempos: f.Data[3]&1 != 0,
+	}, nil
 }
 
 // Frame codifica o estado da planta.

@@ -10,7 +10,7 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 | 3. Planta (Go) | ✅ local e CI |
 | 4. Controle | ✅ local e CI |
 | 5. Tempos + e2e | ✅ local (sem vcan) e CI |
-| 6. Painel | ⏳ |
+| 6. Painel | 🔄 aguardando CI |
 
 ## Etapa 0 — Prova de conceito
 
@@ -241,6 +241,65 @@ host se comportam igual.
   mesmo caminho na CI e na feira.
 - O e2e roda só na CI: o kernel desta sessão não tem SocketCAN (previsto no plano).
 
+## Etapa 6 — Painel
+
+**Feito**
+- `go/internal/painel` (sem raylib, com testes): estado vindo do CAN (`canbus.Visao`), histórico
+  de 10 s para o gráfico, classificação rica/ideal/pobre (±0,02 do alvo), posição na barra,
+  teclas → frames de comando. As teclas partem do que a bancada informa no CAN (TPS, vazão do bico,
+  vazamento, modo), então o painel pode ser fechado e aberto a qualquer momento.
+- `go/cmd/painel` (raylib-go v0.55.1): uma tela, layout 1280×720 escalado para qualquer janela ou
+  tela cheia. λ grande colorido, barra RICA/IDEAL/POBRE, rotação, acelerador, tempo de injeção,
+  correção do PI, perturbações, linha de tempos da ControlTask, atraso do escape e gráfico de λ no
+  cilindro × sonda × alvo. Fonte DejaVu Sans Bold embutida (λ, µ, acentos em qualquer distro).
+- `-demo`: o painel roda a planta com o controle C (SIL) dentro dele e produz os mesmos frames —
+  dá para usar o painel sem Renode nem `vcan0`. `-captura arquivo.png -apos N`: aplica o bico −20 %
+  na metade do tempo e salva a tela (CI e documentação).
+- Codec Go ganhou os codificadores de 0x101/0x110 e o decodificador de 0x200 (usados no demo).
+  O mapeamento 0x310 → comando da planta foi para `plant.CommandFromCAN` (planta e demo usam).
+- `docs/roteiro-feira.md`: preparação, roteiro da demonstração, perguntas comuns e checklist do
+  painel. `docs/painel.png`: captura do modo demo. README com requisitos por distro.
+
+**Verificação**
+
+| Comando | Resultado |
+|---|---|
+| `make test-unit-go` | inclui `internal/painel` (janela do histórico, conexão, teclas, classificação, barra) e os novos codecs |
+| `make painel-captura` (Xvfb) | `docs/painel.png`: λ 1,000 IDEAL, bico 80 %, correção +25,5 %, gráfico com o atraso do escape (cinza → amarelo) e a correção |
+| CI `unit` | build do painel + captura em modo demo (artefato `painel-demo`) |
+| CI `e2e` | painel contra a bancada real no `vcan0` (artefato `e2e/painel-vcan.png`) |
+
+**Desvios**
+- raylib-go fixado na v0.55.1 (estável). Compila o raylib em C na 1ª vez (~1 min) e precisa das
+  bibliotecas de X11/Wayland/GL do sistema (tabela no README).
+
+## Relatório final
+
+**Resultado contra as metas** (tempos no tempo virtual do Renode, que não é cycle-accurate;
+a ECU é o mesmo `.elf` que iria para um STM32F072):
+
+| Métrica | Meta | Medido | Onde |
+|---|---|---|---|
+| Período da ControlTask | 10 ms | 10 000 µs | Robot e e2e |
+| Jitter da ControlTask | ≤ 100 µs | 1–10 µs | Robot (10) e e2e (1) |
+| Execução da ControlTask | ≤ 1 ms | 158–161 µs | Robot e e2e |
+| Deadlines perdidos | 0 | 0 | Robot e e2e |
+| Latência ADC → TIM2 | ≤ 10 ms | fim do bloco do DMA → TIM2 atualizado em ≤ jitter + execução (~0,17 ms); o deadline (fim − liberação ≤ 10 ms) nunca foi perdido | Robot e e2e |
+| Resolução do pulso | 1 µs | 1 µs (TIM2 a 1 MHz) | Robot |
+| Acomodação, bico −20 % em 2000 rpm | ≤ 2 s | 1,30 s (e2e), 1,31 s (SIL) | e2e e SIL |
+| Sobressinal | ≤ 5 % | 0,0 % | e2e e SIL |
+
+**Testes**: Unity 5 suítes (C); Go: engine, sensores, planta, SIL, CAN, painel, gráfico, cliente
+do Renode (com `-race`); Robot 7 casos no Renode; Go × Renode real; e2e no `vcan0`. Tudo na CI.
+
+**Como rodar** (Arch/Fedora/Ubuntu): ver README → "Rodando a bancada" e `docs/roteiro-feira.md`.
+
 ## Pendências para a equipe
 
-Nenhuma até agora.
+- **PR em rascunho não aberto.** O repositório só tem a branch `claude/pensive-curie-cd5dc8`
+  (estava vazio), então não há branch base para o PR. Para abrir: criar `main` (por exemplo a
+  partir do 1º commit) e abrir o PR da branch de trabalho para ela — não fiz porque exigiria
+  empurrar outra branch.
+- **Verificar o painel numa máquina de vocês** com o checklist de `docs/roteiro-feira.md`
+  (aqui só foi possível com Xvfb, sem teclado/monitor de verdade), inclusive em Wayland.
+- **SimulIDE**: ficou de fora, como combinado.
