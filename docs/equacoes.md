@@ -145,8 +145,8 @@ t_base = m_ar(TPS, RPM) / (AFR_st · Q_inj)
 ```
 e = λ_med − λ_alvo                (e > 0: mistura pobre, precisa de mais combustível)
 c = Kp · e + I
-I ← I + Ki · e · Δt               (só integra se c não estiver saturado no mesmo sentido do erro)
-c saturado em ±0,25
+I ← I + Ki · e · Δt               (saturado no sentido do erro: I só anda até c encostar no limite)
+c saturado em ±0,30
 ```
 
 | Parâmetro | Valor |
@@ -154,12 +154,16 @@ c saturado em ±0,25
 | `Kp` | 0,15 |
 | `Ki` | 2,0 1/s |
 | `Δt` | 10 ms |
-| limite de `c` | ±25 % |
+| limite de `c` | ±30 % |
 
 Ajuste: perto de λ = 1 a planta se comporta como `λ ≈ 1/(1+c)` (ganho ≈ −1), com atraso
 `T_d` + `τ_sonda`. Os ganhos seguem a regra SIMC para o pior caso (marcha lenta, atraso de 245 ms):
 `Kc = τ / (K·(τc + θ))` com `τc = θ`, ligeiramente reduzido para manter folga em todas as rotações.
 O valor final é confirmado pelo teste SIL (`go/internal/sil`).
+
+**Limite de ±30 %:** um bico com 80 % da vazão pede `c = 1/0,8 − 1 = +25 %` exatos; com ±25 % o
+controle ficava encostado no limite e qualquer erro da tabela sobrava em λ (no SIL, λ final 1,004).
+Com ±30 % sobra folga para o erro de interpolação da tabela e para perturbações combinadas.
 
 **Malha aberta:** `c = 0` e o integrador é zerado; o tempo de injeção vem só da tabela.
 

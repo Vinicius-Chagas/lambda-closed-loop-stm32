@@ -3,7 +3,7 @@ RENODE_IMAGE ?= antmicro/renode@sha256:b30df3a8ec4eb6c793cca6ed62733c3619363de52
 DOCKER_RUN   = docker run --rm -v $(CURDIR):/work -w /work --user $(shell id -u):$(shell id -g) -e HOME=/tmp
 FW_BUILD     = firmware/build
 
-.PHONY: all firmware test-unit test-unit-c test-unit-go test-integration test-renode test-renode-go renode clean
+.PHONY: all firmware test-unit test-unit-c test-unit-go test-sil test-integration test-renode test-renode-go renode clean
 
 all: firmware
 
@@ -18,10 +18,15 @@ test-unit-c:
 	ctest --test-dir firmware/tests/build --output-on-failure
 
 # Testes unitários da planta, do codec CAN e do cliente do Renode (Go).
+# Inclui o SIL (internal/sil), que compila firmware/control com o cgo.
 test-unit-go:
 	cd go && go vet ./... && go test -race ./...
 
 test-unit: test-unit-c test-unit-go
+
+# Malha fechada: controle C do firmware × planta Go, sem Renode (mostra as medições).
+test-sil:
+	cd go && go test -count=1 -v ./internal/sil
 
 # Testes Robot do firmware rodando no Renode (usa o .elf já compilado).
 test-renode:
@@ -37,6 +42,7 @@ test-renode-go:
 		status=$$?; docker rm -f lambda-renode-test >/dev/null; exit $$status
 
 test-integration: firmware
+	$(MAKE) test-sil
 	$(MAKE) test-renode
 	$(MAKE) test-renode-go
 

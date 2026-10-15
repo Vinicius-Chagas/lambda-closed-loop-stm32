@@ -10,7 +10,7 @@ BO_ 256 ECU_ESTADO: 8 ECU
  SG_ LambdaMedido : 0|16@1+ (0.001,0) [0|65.535] "" PAINEL
  SG_ LambdaAlvo : 16|16@1+ (0.001,0) [0|65.535] "" PAINEL
  SG_ TempoInjecao : 32|16@1+ (1,0) [0|65535] "us" PAINEL
- SG_ CorrecaoPI : 48|8@1- (0.25,0) [-25|25] "%" PAINEL
+ SG_ CorrecaoPI : 48|8@1- (0.25,0) [-30|30] "%" PAINEL
  SG_ Modo : 56|1@1+ (1,0) [0|1] "" PAINEL
  SG_ Contador : 60|4@1+ (1,0) [0|15] "" PAINEL
 

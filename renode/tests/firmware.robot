@@ -47,6 +47,19 @@ Esperar ECU Com Sensores Estaveis
     Wait For Line On Uart    ECU pronta
     Wait For Line On Uart    ADC lambda=2048 tps=620 rpm=3723    timeout=1
 
+Ir Para 2500 rpm E 20 Por Cento
+    [Documentation]    Ponto da tabela de combustível: 0,84 V → 20 % TPS; 1,03 V → 2500 rpm.
+    [Arguments]    ${lambda_v}=1.65
+    Ajustar Sensores    ${lambda_v}    0.84    1.03125
+    # Regex com "." no lugar de "=": o servidor do Renode lê "x=" como argumento nomeado.
+    Wait For Line On Uart    tps.1042 rpm.1279    timeout=1    treatAsRegex=true
+
+Enviar Modo
+    [Documentation]    0 = malha aberta, 1 = malha fechada (λ alvo mantido).
+    [Arguments]    ${modo}
+    Execute Command    can_send ${ID_PAINEL} "00000${modo}00"
+    Wait For Line On Uart    CMD alvo=0 modo=${modo} flags=0    timeout=0.1
+
 *** Test Cases ***
 Deve Inicializar O Firmware
     Wait For Line On Uart    ECU lambda - boot
@@ -70,10 +83,14 @@ Injetor Deve Ter Um Pulso Por Ciclo Do Motor
     # 3,0 V no conversor F/V → 3723 contagens → 7273 rpm → ciclo de 120/rpm s.
     ${ciclo}=    Evaluate    round(120e6 / (3723 / 4095 * 8000))
     ${arr}=      Ler Registrador    ${TIM2_ARR}
-    ${ccr}=      Ler Registrador    ${TIM2_CCR1}
     Should Be Equal As Integers    ${arr}    ${ciclo - 1}
-    # Etapa 2: pulso provisório fixo, até o controle entrar (etapa 4).
-    Should Be Equal As Integers    ${ccr}    3000
+
+    # Malha aberta em λ = 1: pulso = tempo morto + tabela (±0,5 % do modelo).
+    Enviar Modo    0
+    Ir Para 2500 rpm E 20 Por Cento
+    ${ccr}=      Ler Registrador    ${TIM2_CCR1}
+    ${ti}=       Tempo De Injecao Nominal    20    2500
+    Should Be True    abs(${ccr} - ${ti}) <= 0.005 * ${ti}    CCR1=${ccr} esperado=${ti}
 
     # Marcha lenta: 800 rpm → ciclo de 150 ms (não cabe em 16 bits: TIM2 de 32 bits).
     Ajustar Sensores    1.65    0.3    0.33
@@ -82,6 +99,31 @@ Injetor Deve Ter Um Pulso Por Ciclo Do Motor
     ${arr}=      Ler Registrador    ${TIM2_ARR}
     Should Be Equal As Integers    ${arr}    ${ciclo - 1}
 
+Malha Fechada Deve Corrigir A Mistura Ate O Limite
+    Esperar ECU Com Sensores Estaveis
+    Enviar Modo    0
+    Ir Para 2500 rpm E 20 Por Cento
+    ${ti0}=      Ler Registrador    ${TIM2_CCR1}
+
+    # Sonda em λ = 1,10 (2,2 V): mistura pobre → correção sobe até +30 %.
+    Enviar Modo    1
+    Ir Para 2500 rpm E 20 Por Cento    2.2
+    Execute Command    emulation RunFor "2"
+    ${ti}=       Ler Registrador    ${TIM2_CCR1}
+    Should Be True    abs(${ti} - (800 + (${ti0} - 800) * 1.30)) <= 2    ti=${ti} ti0=${ti0}
+
+    # Sonda em λ = 0,90 (1,1 V): mistura rica → correção desce até −30 %.
+    Ir Para 2500 rpm E 20 Por Cento    1.1
+    Execute Command    emulation RunFor "4"
+    ${ti}=       Ler Registrador    ${TIM2_CCR1}
+    Should Be True    abs(${ti} - (800 + (${ti0} - 800) * 0.70)) <= 2    ti=${ti} ti0=${ti0}
+
+    # De volta à malha aberta: só a tabela.
+    Enviar Modo    0
+    Execute Command    emulation RunFor "0.05"
+    ${ti}=       Ler Registrador    ${TIM2_CCR1}
+    Should Be Equal As Integers    ${ti}    ${ti0}
+
 ECU Deve Publicar Estado E Sensores No CAN
     Esperar ECU Com Sensores Estaveis
     Create CAN Tester    canHub    defaultTimeout=1
@@ -89,8 +131,9 @@ ECU Deve Publicar Estado E Sensores No CAN
     ${estado}=   Decodificar Estado    ${dados}
     Should Be Equal As Integers    ${estado}[lambda_med]     1000
     Should Be Equal As Integers    ${estado}[lambda_alvo]    1000
-    Should Be Equal As Integers    ${estado}[ti_us]          3000
     Should Be Equal As Integers    ${estado}[modo]           1
+    ${ccr}=      Ler Registrador    ${TIM2_CCR1}
+    Should Be Equal As Integers    ${estado}[ti_us]          ${ccr}
 
     ${dados}=    Wait For Frame With Id    ${ID_SENSORES}
     ${sens}=     Decodificar Sensores    ${dados}

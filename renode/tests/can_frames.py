@@ -33,3 +33,11 @@ def decodificar_tempos(dados):
         "exec_max_us": exec_max,
         "deadlines_perdidos": perdidos,
     }
+
+
+def tempo_de_injecao_nominal(tps, rpm):
+    """t_morto + m_ar/(AFR_st·Q_inj) em µs, pelo modelo de docs/equacoes.md."""
+    tps, rpm = float(tps), float(rpm)
+    f = 0.10 + 0.90 * min(max(tps, 0.0), 100.0) / 100.0
+    eta = 0.85 - 0.10 * ((rpm - 4000.0) / 3000.0) ** 2
+    return 800.0 + 480.0 * f * eta / (14.7 * 3.0) * 1000.0

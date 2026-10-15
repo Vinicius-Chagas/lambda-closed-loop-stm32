@@ -39,7 +39,7 @@ type EcuEstado struct {
 	LambdaMedido float64
 	LambdaAlvo   float64
 	TiUs         uint16
-	Correcao     float64 // fração (-0,25..0,25)
+	Correcao     float64 // fração (-0,30..0,30)
 	Modo         uint8
 	Contador     uint8
 }

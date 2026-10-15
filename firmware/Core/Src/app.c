@@ -2,8 +2,8 @@
  * Tarefas da ECU.
  *
  * ControlTask (prioridade 3): acordada pelo DMA do ADC a cada 10 ms. Faz a média
- *   das amostras, converte em λ/TPS/RPM, calcula o tempo de injeção, atualiza o
- *   TIM2 e mede os próprios tempos.
+ *   das amostras e chama ecu_step (control/ecu.c: conversão, tabela + PI),
+ *   atualiza o TIM2 e mede os próprios tempos.
  * CanTask (prioridade 2): a cada 20 ms publica estado e sensores, a cada 100 ms
  *   os tempos; trata os comandos do painel (0x200) e escreve o log na USART.
  *
@@ -14,14 +14,13 @@
 #include "ecu_hw.h"
 #include "app.h"
 #include "can_codec.h"
+#include "ecu.h"
 #include "params.h"
-#include "sensors.h"
 #include "timing_stats.h"
 
 #define CAN_PERIOD_MS        20u
 #define TEMPOS_A_CADA        5u    /* 0x110 a cada 5 × 20 ms */
 #define LOG_A_CADA           25u   /* log a cada 25 × 20 ms */
-#define TI_PROVISORIO_US     3000u /* etapa 2: pulso fixo até o controle (etapa 4) */
 
 typedef struct {
     /* saídas da ControlTask */
@@ -32,36 +31,45 @@ typedef struct {
     uint32_t ti_us;
     float correcao;
     timing_stats_t tempos;
-    /* comandos do painel */
+    /* comandos do painel (CanTask → ControlTask) */
     float lambda_alvo;
     modo_t modo;
     bool zerar_tempos;
 } ecu_shared_t;
 
 static ecu_shared_t shared;
+static ecu_t ecu; /* só a ControlTask mexe */
 static TaskHandle_t control_task;
+
+_Static_assert((int)ADC_IDX_LAMBDA == (int)ECU_ADC_LAMBDA && (int)ADC_IDX_TPS == (int)ECU_ADC_TPS &&
+               (int)ADC_IDX_RPM == (int)ECU_ADC_RPM && (int)ADC_NUM_CHANNELS == (int)ECU_ADC_N,
+               "ordem dos canais do ADC");
 
 static void control_step(uint32_t ativacoes_puladas)
 {
     uint32_t inicio = timing_now_us();
     uint32_t liberacao = adc_dma_block_timestamp_us();
 
+    taskENTER_CRITICAL();
+    float lambda_alvo = shared.lambda_alvo;
+    modo_t modo = shared.modo;
+    taskEXIT_CRITICAL();
+    ecu_set_alvo(&ecu, lambda_alvo);
+    ecu_set_modo(&ecu, modo);
+
     uint16_t adc[ADC_NUM_CHANNELS];
     adc_dma_block_average(adc);
-    float lambda_med = sensor_lambda(adc[ADC_IDX_LAMBDA]);
-    float tps = sensor_tps(adc[ADC_IDX_TPS]);
-    float rpm = sensor_rpm(adc[ADC_IDX_RPM]);
-
-    uint32_t ti_us = TI_PROVISORIO_US;
-    injector_set(engine_cycle_us(rpm), ti_us);
+    ecu_out_t out;
+    ecu_step(&ecu, adc, &out);
+    injector_set(out.ctrl.ciclo_us, out.ctrl.ti_us);
 
     taskENTER_CRITICAL();
     memcpy(shared.adc, adc, sizeof(adc));
-    shared.lambda_med = lambda_med;
-    shared.tps = tps;
-    shared.rpm = rpm;
-    shared.ti_us = ti_us;
-    shared.correcao = 0.0f;
+    shared.lambda_med = out.lambda_med;
+    shared.tps = out.tps;
+    shared.rpm = out.rpm;
+    shared.ti_us = out.ctrl.ti_us;
+    shared.correcao = out.ctrl.correcao;
     if(shared.zerar_tempos) {
         shared.zerar_tempos = false;
         timing_stats_reset(&shared.tempos);
@@ -178,8 +186,9 @@ static void can_loop(void *arg)
 
 void app_start(void)
 {
-    shared.lambda_alvo = LAMBDA_ALVO_PADRAO;
-    shared.modo = MODO_MALHA_FECHADA;
+    ecu_init(&ecu);
+    shared.lambda_alvo = ecu.lambda_alvo;
+    shared.modo = ecu.modo;
     timing_stats_init(&shared.tempos, CONTROL_PERIOD_US);
 
     if(xTaskCreate(control_loop, "control", 256, NULL, 3, &control_task) != pdPASS ||

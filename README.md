@@ -21,7 +21,9 @@ Física e parâmetros: [`docs/equacoes.md`](docs/equacoes.md). Andamento: [`docs
 
 ```sh
 make firmware          # compila firmware/build/ecu.elf
-make test-integration  # compila e roda os testes Robot no Renode
+make test-unit         # Unity (controle C) + go test (planta, SIL)
+make test-sil          # malha fechada C × planta Go, com as medições de acomodação
+make test-integration  # SIL + testes Robot no Renode + cliente Go contra o Renode
 make renode            # Renode interativo com a ECU carregada
 ./scripts/setup-vcan.sh   # cria vcan0 (root)
 ```

@@ -31,7 +31,7 @@
 #define LAMBDA_ALVO_MAX     1.20f
 #define PI_KP               0.15f
 #define PI_KI               2.0f     /* 1/s */
-#define PI_LIMITE           0.25f    /* correção máxima: ±25 % */
+#define PI_LIMITE           0.30f    /* correção máxima: ±30 % (ver equacoes.md) */
 
 /* Injetor: um pulso por ciclo (2 voltas); abaixo disso o motor está parado */
 #define RPM_MIN_GIRANDO     100.0f

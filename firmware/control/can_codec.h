@@ -22,7 +22,7 @@ typedef struct {
     float lambda_med;      /* u16, 0,001 */
     float lambda_alvo;     /* u16, 0,001 */
     uint32_t ti_us;        /* u16, µs (satura em 65535) */
-    float correcao;        /* i8, 0,25 % (-0,25..0,25 → -100..100) */
+    float correcao;        /* i8, 0,25 % (-0,30..0,30 → -120..120) */
     modo_t modo;           /* byte 7, bit 0 */
     uint8_t contador;      /* byte 7, bits 4..7: incrementa a cada frame (0..15) */
 } msg_ecu_estado_t;

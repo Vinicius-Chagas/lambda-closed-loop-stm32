@@ -8,7 +8,7 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 | 1. Equações | ✅ |
 | 2. Periféricos | ✅ local e CI |
 | 3. Planta (Go) | ✅ local |
-| 4. Controle | ⏳ |
+| 4. Controle | ✅ local |
 | 5. Tempos + e2e | ⏳ |
 | 6. Painel | ⏳ |
 
@@ -144,6 +144,54 @@ com `RunFor 5`), então esse é o teto. Para a feira, `-sync 10` dá ~0,7×.
 **Desvios**
 - O Renode não reenvia o prompt numa reconexão ao monitor; o cliente manda uma linha vazia e descarta
   os prompts acumulados.
+
+## Etapa 4 — Controle
+
+**Feito** (`firmware/control/`, C puro, o mesmo código no firmware, nos testes Unity e no SIL)
+- `fuel_map.c`: tabela de combustível base 7 (TPS) × 8 (RPM), interpolação bilinear, borda sem
+  extrapolar. Os pontos saem do modelo nominal de `docs/equacoes.md` (o teste confere cada um).
+- `controller.c`: `t_i = t_morto + t_base·(1 + c)`, PI sobre `e = λ_med − λ_alvo` (Kp 0,15,
+  Ki 2,0/s, Δt 10 ms) com anti-windup condicional; malha aberta zera o integrador; motor parado
+  (< 100 rpm) não injeta; pulso limitado a 90 % do ciclo e a 60 ms.
+- `ecu.c`: um período de controle a partir das contagens do ADC (`ecu_step`) e comandos do painel
+  validados (`ecu_set_alvo`, `ecu_set_modo`).
+- `ControlTask` usa `ecu_step`; a correção vai no frame 0x100.
+- SIL (`go/internal/sil`): o cgo compila `firmware/control/*.c` (um `.c` de inclusão por fonte) e
+  a ECU resultante implementa `plant.ECU`: soma as amostras de 10 ms e roda o controle, como o
+  firmware. `plant.AnalisarDegrau` mede desvio, sobressinal e acomodação (reusado no e2e).
+
+**Verificação**
+
+| Comando | Resultado |
+|---|---|
+| `make test-unit-c` | 5/5 suítes Unity: tabela = modelo em todos os 56 pontos (±1 µs), interpolação, bordas, monotonia; PI: sinal da correção, 1º passo = (Kp + Ki·Δt)·e, saturação e anti-windup, malha aberta zera a integral, motor parado, limite de 90 % do ciclo, comandos inválidos ignorados |
+| `make test-unit-go` | inclui o SIL e `AnalisarDegrau` |
+| `make test-renode` | 7/7: o injetor agora vem do controle (malha aberta em 2500 rpm/20 % = modelo ±0,5 %); novo teste da malha fechada no Renode: sonda pobre leva o pulso a `t_morto + 1,30·t_base`, sonda rica a `0,70·t_base`, malha aberta volta à tabela; ti do frame 0x100 = CCR1 do TIM2 |
+
+Resposta em malha fechada (SIL, 2000 rpm, perturbação aplicada com λ = 1 estável; λ medido na
+sonda; banda ±0,02):
+
+| Perturbação | Desvio máx. | Sobressinal | Acomodação | λ final | Correção final |
+|---|---|---|---|---|---|
+| Bico −20 % (vazão 0,8) | 0,203 | 0,0 % | 1,31 s | 1,0009 | +25,4 % |
+| Bico +20 % (vazão 1,2) | 0,139 | 0,1 % | 1,09 s | 1,0000 | −16,3 % |
+| Vazamento de ar 10 mg | 0,069 | 0,1 % | 0,88 s | 1,0002 | +8,8 % |
+| Bico −20 % em marcha lenta (800 rpm, pior atraso) | 0,234 | 2,9 % | 1,18 s | 0,9996 | — |
+| Bico −20 % em malha aberta | λ fica em ≈ 1,25 | | | | 0 |
+
+Metas: acomodação ≤ 2 s ✅, sobressinal ≤ 5 % ✅.
+
+Tempos da `ControlTask` no Renode com o controle: período 10 000 µs, jitter 10 µs, execução máx.
+**158 µs** (era 71 µs com o pulso fixo; o M0 não tem FPU e o PI e a tabela usam `float` por
+software), 0 deadlines perdidos.
+
+**Desvios**
+- **Limite da correção de ±25 % para ±30 %.** O bico com 80 % da vazão pede exatamente +25 %; com
+  ±25 % o PI ficava encostado no limite e o erro da tabela sobrava em λ (λ final 1,004). Com ±30 %
+  a correção assenta em +25,4 % com folga (`docs/equacoes.md` e `can/lambda.dbc` atualizados).
+- **Anti-windup**: a forma "não integra se saturar" deixava a saída parada em 0,249, um passo antes
+  do limite (achado pelo teste Unity). Agora a integral anda só até a saída encostar no limite.
+- O controle não usa `libm` no alvo (sem `fminf`/`fmaxf`), para não aumentar a FLASH.
 
 ## Pendências para a equipe
 
