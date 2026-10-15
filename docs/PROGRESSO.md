@@ -10,7 +10,7 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 | 3. Planta (Go) | ✅ local e CI |
 | 4. Controle | ✅ local e CI |
 | 5. Tempos + e2e | ✅ local (sem vcan) e CI |
-| 6. Painel | 🔄 aguardando CI |
+| 6. Painel | ✅ local (Xvfb) e CI |
 
 ## Etapa 0 — Prova de conceito
 
