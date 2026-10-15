@@ -4,10 +4,10 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 
 | Etapa | Status |
 |---|---|
-| 0. Prova de conceito | ✅ local · CI: build e Robot verdes; ponte vcan0 em ajuste |
+| 0. Prova de conceito | ✅ local e CI |
 | 1. Equações | ✅ |
-| 2. Periféricos | ✅ local |
-| 3. Planta (Go) | ⏳ |
+| 2. Periféricos | ✅ local e CI |
+| 3. Planta (Go) | ✅ local |
 | 4. Controle | ⏳ |
 | 5. Tempos + e2e | ⏳ |
 | 6. Painel | ⏳ |
@@ -28,7 +28,7 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 |---|---|
 | `make firmware` | compila sem avisos (`-Wall -Wextra -Werror`); FLASH 19,5 KB / 128 KB, RAM 9,6 KB / 16 KB |
 | `make test-renode` | 4/4 testes OK: boot; ADC lê 1,65/0,5/3,0 V → 2048/620/3723 e depois 0,6/2,0/1,2 V; TIM2 ARR = 59999 e CCR1 = 1650; frame CAN 0x100 com os 3 valores do ADC |
-| CI `vcan` (`scripts/check-vcan-bridge.sh`) | 1ª execução: a ponte funciona (frames `100#…` no `vcan0` do runner), mas só 3 frames chegaram antes de parar; diagnóstico em andamento (o script agora imprime o log do Renode) |
+| CI `vcan` (`scripts/check-vcan-bridge.sh`) | ✅ 20 frames 0x100 da ECU no `vcan0` do runner. Na 1ª tentativa só 3 chegavam: o container subia sem `-i`, o console do Renode recebia EOF e a emulação encerrava |
 
 **Lockstep pelo monitor do Renode** (cliente Python provisório, TCP_NODELAY, 1 comando composto por
 passo: `Volts; RunFor; ReadDoubleWord`):
@@ -108,6 +108,42 @@ Tempos da `ControlTask` medidos no Renode (2 s simulados após zerar):
 - Estado e sensores em dois frames (0x100 e 0x101): os campos do plano não cabem em 8 bytes.
 - Periféricos iniciados dentro da `ControlTask` (antes do escalonador o FreeRTOS mascara as
   interrupções e o `HAL_GetTick` fica parado).
+
+## Etapa 3 — Planta (Go)
+
+**Feito** (`go/`, módulo único)
+- `internal/engine`: motor (rotação de 1ª ordem seguindo a borboleta, ar alfa-N, combustível do bico
+  com tempo morto, λ no cilindro) e atraso de transporte do escape numa linha de atraso com
+  interpolação. Parâmetros em `params.go`, iguais a `docs/equacoes.md` e `firmware/control/params.h`.
+- `internal/sensors`: sonda (1ª ordem, τ = 100 ms), TPS e conversor F/V; **uma goroutine por sensor**,
+  sincronizadas por passo numa barreira (`Bank`). O relógio é o da simulação.
+- `internal/renode`: cliente do monitor (TCP, trata a negociação telnet, eco e prompt, reconexão).
+  Cada passo é **um comando** `lockstep <V λ> <V tps> <V rpm> <dt>` (`renode/lockstep.py`, Python
+  dentro do Renode), que ajusta o ADC, roda `dt` e devolve CCR1/ARR do TIM2.
+- `internal/plant`: laço da bancada (física em subpassos de 1 ms, sincronização com a ECU a cada
+  5 ms), comandos do painel por canal, gravação CSV. A ECU é uma interface: Renode agora, controle C
+  via cgo no SIL (etapa 4).
+- `internal/canbus`: codec dos frames (mesmo vetor de teste do firmware) e SocketCAN
+  (`go.einride.tech/can`).
+- `cmd/planta`: liga tudo; recebe 0x310 do painel e publica 0x300 a cada 20 ms simulados.
+- `renode/lambda.resc` agora usa `$ORIGIN`: funciona a partir de qualquer diretório e já carrega os
+  comandos `lockstep` e `can_send`.
+
+**Verificação**
+
+| Comando | Resultado |
+|---|---|
+| `make test-unit-go` (`go vet` + `go test -race ./...`) | OK: curvas e atraso (tabela de `equacoes.md`), degrau do bico aparece no escape após `Td` (±3 ms), sonda com 63,2 % em τ, barreira sem passos pulados (4 sensores × 1000 passos, sem corrida), codec, cliente do monitor contra servidor falso, laço da planta e CSV |
+| `make test-renode-go` | OK contra o Renode real: período do TIM2 = 120/RPM em 7273 rpm e em marcha lenta |
+| `planta -script @renode/lambda.resc -can "" -duracao 3` | roda com o firmware no Renode; CSV gerado |
+
+Velocidade do lockstep (passo de 5 ms): 70 passos/s com 6 comandos por passo → **96 passos/s
+(0,48× o tempo real)** com o comando único `lockstep`. A emulação livre da ECU anda a ~1,0× (medido
+com `RunFor 5`), então esse é o teto. Para a feira, `-sync 10` dá ~0,7×.
+
+**Desvios**
+- O Renode não reenvia o prompt numa reconexão ao monitor; o cliente manda uma linha vazia e descarta
+  os prompts acumulados.
 
 ## Pendências para a equipe
 

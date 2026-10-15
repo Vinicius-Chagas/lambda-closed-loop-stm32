@@ -3,7 +3,7 @@
 
 $can_if?="vcan0"
 
-include @renode/lambda.resc
+include $ORIGIN/lambda.resc
 
 # Ponte entre o hub CAN interno e o SocketCAN do host. Os frames que chegam
 # com a emulação pausada (lockstep da planta) ficam guardados até o próximo passo.

@@ -16,6 +16,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Unity (controle em C)
         run: make test-unit-c
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Go (planta, CAN, cliente do Renode)
+        run: make test-unit-go
 
   firmware:
     name: Firmware (build)
@@ -48,6 +54,12 @@ jobs:
           for i in 1 2 3 4; do docker pull "$RENODE_IMAGE" && break; sleep $((i * 10)); done
       - name: Testes Robot
         run: make test-renode
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Cliente Go contra o Renode
+        run: make test-renode-go
       - uses: actions/upload-artifact@v4
         if: always()
         with:

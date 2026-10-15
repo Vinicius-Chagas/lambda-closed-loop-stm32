@@ -1,9 +1,14 @@
 :name: ECU lambda (STM32F072)
 :description: ECU de controle de mistura com sensores injetados pela planta
 
+# Caminhos relativos a este arquivo ($ORIGIN): funciona de qualquer diretório.
 $name?="ecu"
-$bin?=@firmware/build/ecu.elf
-$repl?=@renode/stm32f072_lambda.repl
+$bin?=$ORIGIN/../firmware/build/ecu.elf
+$repl?=$ORIGIN/stm32f072_lambda.repl
+
+# Comandos de monitor da bancada: `lockstep` (planta) e `can_send` (testes).
+include $ORIGIN/lockstep.py
+include $ORIGIN/can_send.py
 
 using sysbus
 mach create $name

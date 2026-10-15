@@ -22,7 +22,6 @@ Iniciar ECU
     Execute Command           $bin=@${ELF}
     Execute Command           $repl=@${REPL}
     Execute Command           include @${ROOT}/renode/lambda.resc
-    Execute Command           include @${ROOT}/renode/can_send.py
     Create Terminal Tester    ${UART}    defaultPauseEmulation=true
 
 Ajustar Sensores

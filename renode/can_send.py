@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Comando de monitor para injetar um frame CAN no controlador da ECU, sem
 # precisar de vcan0 (usado nos testes Robot):
 #   can_send 0x200 "E8030100"
