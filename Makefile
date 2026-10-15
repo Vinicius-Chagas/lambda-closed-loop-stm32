@@ -3,7 +3,7 @@ RENODE_IMAGE ?= antmicro/renode@sha256:b30df3a8ec4eb6c793cca6ed62733c3619363de52
 DOCKER_RUN   = docker run --rm -v $(CURDIR):/work -w /work --user $(shell id -u):$(shell id -g) -e HOME=/tmp
 FW_BUILD     = firmware/build
 
-.PHONY: all firmware test-unit test-unit-c test-unit-go test-sil test-integration test-renode test-renode-go renode clean
+.PHONY: all firmware test-unit test-unit-c test-unit-go test-sil test-integration test-renode test-renode-go test-e2e run grafico renode clean
 
 all: firmware
 
@@ -45,6 +45,19 @@ test-integration: firmware
 	$(MAKE) test-sil
 	$(MAKE) test-renode
 	$(MAKE) test-renode-go
+
+# Ponta a ponta no vcan0: ECU no Renode + planta + teste Go pelo CAN.
+test-e2e: firmware
+	./scripts/e2e.sh
+
+# Bancada para a feira (ECU + planta no vcan0). O painel roda à parte (make painel).
+run: firmware
+	./scripts/bancada.sh -csv build/corrida.csv
+
+# Gráfico SVG de uma corrida: make grafico CSV=build/corrida.csv
+CSV ?= build/corrida.csv
+grafico:
+	cd go && go run ./cmd/grafico -o $(abspath $(CSV:.csv=.svg)) $(abspath $(CSV))
 
 # Renode interativo no terminal, com a ECU carregada (sem planta).
 renode: firmware

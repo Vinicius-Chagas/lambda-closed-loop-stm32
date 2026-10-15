@@ -22,7 +22,7 @@ import (
 
 func main() {
 	addr := flag.String("renode", "localhost:1234", "endereço do monitor do Renode")
-	script := flag.String("script", "@renode/lambda-vcan.resc", "script carregado no Renode (vazio = já carregado)")
+	script := flag.String("script", "auto", "script carregado no Renode (auto = lambda-vcan.resc com -can, lambda.resc sem; vazio = já carregado)")
 	iface := flag.String("can", "vcan0", "interface SocketCAN (vazio = sem CAN)")
 	dt := flag.Float64("dt", 0.001, "passo da física, s")
 	sync := flag.Int("sync", 5, "subpassos por sincronização com a ECU")
@@ -46,6 +46,16 @@ func run(ctx context.Context, addr, script, iface string, dt float64, sync int, 
 		return err
 	}
 	defer mon.Close()
+	if script == "auto" {
+		script = "@renode/lambda.resc"
+		if iface != "" {
+			// a ponte do Renode usa a mesma interface que a planta
+			if _, err := mon.Exec(fmt.Sprintf("$can_if=%q", iface)); err != nil {
+				return err
+			}
+			script = "@renode/lambda-vcan.resc"
+		}
+	}
 	ecu, err := renode.NewECU(mon, script)
 	if err != nil {
 		return err

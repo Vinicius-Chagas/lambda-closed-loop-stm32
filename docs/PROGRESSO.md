@@ -7,9 +7,9 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 | 0. Prova de conceito | ✅ local e CI |
 | 1. Equações | ✅ |
 | 2. Periféricos | ✅ local e CI |
-| 3. Planta (Go) | ✅ local |
-| 4. Controle | ✅ local |
-| 5. Tempos + e2e | ⏳ |
+| 3. Planta (Go) | ✅ local e CI |
+| 4. Controle | ✅ local e CI |
+| 5. Tempos + e2e | 🔄 aguardando CI |
 | 6. Painel | ⏳ |
 
 ## Etapa 0 — Prova de conceito

@@ -66,8 +66,8 @@ jobs:
           name: robot-results
           path: build/robot
 
-  vcan:
-    name: Ponte SocketCAN (vcan0)
+  e2e:
+    name: Ponta a ponta (vcan0)
     needs: firmware
     runs-on: ubuntu-24.04
     steps:
@@ -85,10 +85,21 @@ jobs:
       - name: Baixar imagem do Renode
         run: |
           for i in 1 2 3 4; do docker pull "$RENODE_IMAGE" && break; sleep $((i * 10)); done
-      - name: ECU → vcan0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Ponte SocketCAN (ECU → vcan0)
         run: ./scripts/check-vcan-bridge.sh vcan0
+      - name: ECU + planta + painel pelo CAN
+        run: ./scripts/e2e.sh
+      - name: Gráfico da corrida
+        if: always()
+        run: test -f build/e2e/corrida.csv && make grafico CSV=build/e2e/corrida.csv || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: vcan-logs
-          path: build/vcan-*.log
+          name: e2e
+          path: |
+            build/e2e
+            build/vcan-*.log
