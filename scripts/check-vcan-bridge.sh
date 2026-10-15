@@ -13,7 +13,8 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 trap 'docker logs "$NAME" > build/vcan-renode.log 2>&1 || true; docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
 mkdir -p build
 
-docker run -d --name "$NAME" --network host -v "$PWD":/work -w /work "$IMAGE" \
+# -i mantém o stdin aberto: sem ele o console do Renode recebe EOF e encerra.
+docker run -d -i --name "$NAME" --network host -v "$PWD":/work -w /work "$IMAGE" \
     renode --disable-xwt --console --plain \
     -e "\$can_if=\"$IF\"; include @renode/lambda-vcan.resc; sysbus.adc.lambdaSensor Volts 1.65; start" >/dev/null
 
