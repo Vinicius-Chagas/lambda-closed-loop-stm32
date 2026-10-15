@@ -105,7 +105,7 @@ jobs:
           cache-dependency-path: go/go.sum
       - name: Ponte SocketCAN (ECU → vcan0)
         run: ./scripts/check-vcan-bridge.sh vcan0
-      - name: ECU + planta + painel pelo CAN
+      - name: ECU + planta + teste pelo CAN
         run: ./scripts/e2e.sh
       - name: Painel na bancada real (captura de tela)
         run: |
