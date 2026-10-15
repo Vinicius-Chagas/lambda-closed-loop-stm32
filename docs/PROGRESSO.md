@@ -9,7 +9,7 @@ Registro de cada etapa: o que foi feito, como foi verificado, valores medidos e 
 | 2. Periféricos | ✅ local e CI |
 | 3. Planta (Go) | ✅ local e CI |
 | 4. Controle | ✅ local e CI |
-| 5. Tempos + e2e | 🔄 aguardando CI |
+| 5. Tempos + e2e | ✅ local (sem vcan) e CI |
 | 6. Painel | ⏳ |
 
 ## Etapa 0 — Prova de conceito
@@ -192,6 +192,54 @@ software), 0 deadlines perdidos.
 - **Anti-windup**: a forma "não integra se saturar" deixava a saída parada em 0,249, um passo antes
   do limite (achado pelo teste Unity). Agora a integral anda só até a saída encostar no limite.
 - O controle não usa `libm` no alvo (sem `fminf`/`fmaxf`), para não aumentar a FLASH.
+
+## Etapa 5 — Tempos e ponta a ponta
+
+**Feito**
+- Tempos da `ControlTask` verificados em dois níveis: Robot (frame 0x110 depois de 2 s simulados)
+  e e2e (0x110 lido pelo CAN depois do degrau, com estatísticas zeradas pelo painel).
+- `go/e2e` (build tag `e2e`): só conversa pelo `vcan0`, como o painel. Roteiro: espera ECU e
+  planta no barramento → acelerador 23 % (≈ 2000 rpm) até λ estável → bico −20 % (0x310) e mede
+  a resposta pela sonda (0x300) → tempos (0x110) → malha aberta (0x200): o erro fica → volta à
+  malha fechada: λ volta a 1. O tempo simulado é contado pelos frames 0x300 (um a cada 20 ms).
+- `scripts/bancada.sh`: ECU no Renode (Docker, `--network host`) + planta nativa; `make run`.
+  `scripts/e2e.sh` / `make test-e2e`: sobe a bancada, roda o teste, guarda CSV e logs em
+  `build/e2e`.
+- `cmd/grafico` / `make grafico CSV=…`: SVG de λ (cilindro e sonda, banda ±0,02) e do tempo de
+  injeção, com as perturbações marcadas. A CI publica `corrida.csv` e `corrida.svg` no artefato
+  `e2e`.
+- A planta escolhe o script do Renode pela interface: `lambda-vcan.resc` com `$can_if` = `-can`,
+  ou `lambda.resc` com `-can ""`.
+
+**Verificação**
+
+| Comando | Resultado |
+|---|---|
+| `make test-unit-go` | inclui `canbus.Visao` e o gráfico (leitura do CSV, marcas, SVG) |
+| `scripts/bancada.sh -can "" -duracao 3` (local, sem vcan) | Renode + planta sobem, CSV gravado, container removido ao sair |
+| CI `e2e` (`scripts/e2e.sh`, run 7) | ✅ 6/6 subtestes em 20,5 s |
+
+Medido ponta a ponta (firmware no Renode + planta + CAN, CI):
+
+| Métrica | Medido | Meta |
+|---|---|---|
+| Acomodação após bico −20 % em 2000 rpm | **1,30 s** | ≤ 2 s |
+| Sobressinal | **0,0 %** | ≤ 5 % |
+| λ final / correção | 1,0000 / +25,5 % | 1,00 ± 0,02 |
+| Período da `ControlTask` | 10 000 µs | 10 ms |
+| Jitter máximo | 1 µs | ≤ 100 µs |
+| Execução máxima | 161 µs | ≤ 1 ms |
+| Deadlines perdidos | 0 | 0 |
+| Malha aberta com bico −20 % | λ ≈ 1,25 (não corrige) | — |
+
+O resultado bate com o SIL (1,31 s), o que confirma que o firmware no Renode e o controle C no
+host se comportam igual.
+
+**Desvios**
+- **Sem `docker-compose.yml`.** A planta roda nativa (a equipe já precisa de Go para o painel) e
+  só o Renode vai em Docker; um script curto (`bancada.sh`) substitui o compose. Menos peças e o
+  mesmo caminho na CI e na feira.
+- O e2e roda só na CI: o kernel desta sessão não tem SocketCAN (previsto no plano).
 
 ## Pendências para a equipe
 
