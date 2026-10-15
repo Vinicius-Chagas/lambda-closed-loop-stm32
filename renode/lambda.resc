@@ -1,0 +1,30 @@
+:name: ECU lambda (STM32F072)
+:description: ECU de controle de mistura com sensores injetados pela planta
+
+$name?="ecu"
+$bin?=@firmware/build/ecu.elf
+$repl?=@renode/stm32f072_lambda.repl
+
+using sysbus
+mach create $name
+machine LoadPlatformDescription $repl
+
+# Taxa de instruções aproximada de um Cortex-M0 a 48 MHz.
+cpu PerformanceInMips 48
+
+# Log da USART1 em arquivo/console.
+showAnalyzer sysbus.usart1
+
+# Sem isto o console fica cheio de avisos de pedidos de DMA de timers (TIM7/TIM15)
+# em canais que o firmware não usa; o modelo liga esses sinais mesmo sem UDE.
+logLevel 3 sysbus.dma
+
+# Barramento CAN interno da emulação.
+emulation CreateCANHub "canHub"
+connector Connect sysbus.can canHub
+
+macro reset
+"""
+    sysbus LoadELF $bin
+"""
+runMacro $reset

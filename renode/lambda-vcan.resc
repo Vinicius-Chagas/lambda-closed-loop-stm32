@@ -1,0 +1,11 @@
+:name: ECU lambda + SocketCAN
+:description: Igual a lambda.resc, mas liga o barramento CAN da emulação à interface vcan0 do host (Linux)
+
+$can_if?="vcan0"
+
+include @renode/lambda.resc
+
+# Ponte entre o hub CAN interno e o SocketCAN do host. Os frames que chegam
+# com a emulação pausada (lockstep da planta) ficam guardados até o próximo passo.
+machine CreateSocketCANBridge "socketcan" $can_if false false true
+connector Connect sysbus.socketcan canHub

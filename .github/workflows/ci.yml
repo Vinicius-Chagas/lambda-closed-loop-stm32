@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+env:
+  RENODE_IMAGE: antmicro/renode@sha256:b30df3a8ec4eb6c793cca6ed62733c3619363de52ffd9f52de98a11f3500471b
+
+jobs:
+  firmware:
+    name: Firmware (build)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain ARM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi cmake
+      - name: Compilar
+        run: make firmware
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ecu-elf
+          path: firmware/build/ecu.elf
+
+  renode:
+    name: Integração (Renode + Robot)
+    needs: firmware
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ecu-elf
+          path: firmware/build
+      - name: Baixar imagem do Renode
+        run: |
+          for i in 1 2 3 4; do docker pull "$RENODE_IMAGE" && break; sleep $((i * 10)); done
+      - name: Testes Robot
+        run: make test-renode
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: robot-results
+          path: build/robot
+
+  vcan:
+    name: Ponte SocketCAN (vcan0)
+    needs: firmware
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ecu-elf
+          path: firmware/build
+      - name: vcan0 + can-utils
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends can-utils
+          sudo modprobe vcan || { sudo apt-get install -y "linux-modules-extra-$(uname -r)" && sudo modprobe vcan; }
+          ./scripts/setup-vcan.sh vcan0
+      - name: Baixar imagem do Renode
+        run: |
+          for i in 1 2 3 4; do docker pull "$RENODE_IMAGE" && break; sleep $((i * 10)); done
+      - name: ECU → vcan0
+        run: ./scripts/check-vcan-bridge.sh vcan0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vcan-logs
+          path: build/vcan-*.log

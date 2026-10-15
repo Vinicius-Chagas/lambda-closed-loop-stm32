@@ -1,0 +1,25 @@
+# Saídas de build e testes
+/build/
+firmware/build/
+firmware/tests/build/
+*.o
+*.elf
+*.bin
+*.map
+
+# Renode / Robot
+logs/
+snapshots/
+robot_output.xml
+log.html
+report.html
+
+# Go
+/go/bin/
+*.test
+*.out
+
+# Editores
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,35 @@
+// Placa da bancada: STM32F072 + sensores analógicos ligados ao ADC.
+// Parte da plataforma oficial do Renode e corrige o que a ECU usa.
+using "platforms/cpus/stm32f072.repl"
+
+// O modelo usa frequências fixas para timers e SysTick; ajustamos para
+// SYSCLK = 48 MHz, o clock configurado pelo firmware.
+nvic:
+    systickFrequency: 48000000
+
+timer2:
+    frequency: 48000000
+
+timer7:
+    frequency: 48000000
+
+timer15:
+    frequency: 48000000
+
+timer14:
+    frequency: 48000000
+
+// No STM32F072 as quatro linhas de interrupção do bxCAN chegam à NVIC pela
+// mesma entrada (CEC_CAN, IRQ 30). A plataforma original não liga nenhuma.
+canIrq: Miscellaneous.CombinedInput @ none
+    numberOfInputs: 4
+    -> nvic@30
+
+can:
+    [0-3] -> canIrq@[0-3]
+
+// Sensores: uma fonte de tensão por canal do ADC, ajustável em tempo de
+// execução pelo monitor (ex.: `sysbus.adc.lambdaSensor Volts 1.65`).
+lambdaSensor: Analog.ADCChannelSource @ adc 0
+tpsSensor: Analog.ADCChannelSource @ adc 1
+rpmSensor: Analog.ADCChannelSource @ adc 2
