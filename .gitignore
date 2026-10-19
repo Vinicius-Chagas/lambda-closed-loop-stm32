@@ -1,6 +1,7 @@
 # Saídas de build e testes
 /build/
 firmware/build/
+firmware/build-docker/
 firmware/tests/build/
 *.o
 *.elf

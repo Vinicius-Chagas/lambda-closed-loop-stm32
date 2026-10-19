@@ -28,16 +28,24 @@ O módulo `vcan` vem no kernel padrão; se o `modprobe vcan` falhar, instale `ke
 
 ## Rodando a bancada
 
+Teste rápido, sem toolchain ARM, Renode nem `vcan0`: `make painel-demo` roda o mesmo controle C
+dentro do painel.
+
+A bancada completa:
+
 ```sh
-make firmware               # compila firmware/build/ecu.elf
+make firmware               # compila firmware/build/ecu.elf (precisa do arm-none-eabi-gcc)
 ./scripts/setup-vcan.sh     # cria vcan0 (pede sudo; refazer após reiniciar)
 make run                    # terminal 1: ECU no Renode + planta (CSV em build/corrida.csv)
 make painel                 # terminal 2: painel
 candump vcan0               # opcional: os frames passando (can/lambda.dbc)
 ```
 
-Sem Renode e sem `vcan0` (ex.: para mexer no painel): `make painel-demo` roda o mesmo controle C
-dentro do painel. Roteiro da apresentação: [`docs/roteiro-feira.md`](docs/roteiro-feira.md).
+Sem o toolchain ARM instalado, `make firmware-docker` compila o mesmo `.elf` num container
+(`docker/Dockerfile.toolchain`), e `make run`, `make test-integration`, `make test-e2e` e
+`make renode` passam a usar esse caminho sozinhos.
+
+Roteiro da apresentação: [`docs/roteiro-feira.md`](docs/roteiro-feira.md).
 
 ## Testes
 

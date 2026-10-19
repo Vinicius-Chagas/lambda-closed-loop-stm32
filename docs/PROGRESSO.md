@@ -294,6 +294,25 @@ do Renode (com `-race`); Robot 7 casos no Renode; Go × Renode real; e2e no `vca
 
 **Como rodar** (Arch/Fedora/Ubuntu): ver README → "Rodando a bancada" e `docs/roteiro-feira.md`.
 
+## Primeiro teste numa máquina da equipe
+
+Retorno: `make firmware` falhou (sem `arm-none-eabi-gcc` no PATH) e, como o README encadeava
+`make firmware && ./scripts/setup-vcan.sh`, o `vcan0` não foi criado e o `make painel` saiu com
+"no such network interface". Nada no código; faltavam pré-requisitos com mensagens pouco claras.
+
+Correções:
+- `make firmware` sem o toolchain mostra o comando de instalação por distro e sugere o container.
+- `make firmware-docker` compila o mesmo `.elf` em `docker/Dockerfile.toolchain` (ubuntu:24.04 +
+  `gcc-arm-none-eabi`); `run`, `test-integration`, `test-e2e` e `renode` usam esse caminho sozinhos
+  quando não há toolchain no host.
+- `scripts/bancada.sh` confere a interface CAN antes de subir o Renode e manda rodar
+  `scripts/setup-vcan.sh`.
+- README: passos separados e `make painel-demo` destacado como teste rápido.
+
+Verificado aqui: `make firmware` com PATH sem o toolchain → dica e erro; `make firmware-docker`
+(1m35s a frio) → `ecu.elf` idêntico em tamanho (27420 B de texto); `make test-renode` com esse
+`.elf` → 7/7 OK; `bancada.sh` sem `vcan0` → dica e saída 1.
+
 ## Pendências para a equipe
 
 - **PR em rascunho não aberto.** O repositório só tem a branch `claude/pensive-curie-cd5dc8`

@@ -2,14 +2,34 @@
 RENODE_IMAGE ?= antmicro/renode@sha256:b30df3a8ec4eb6c793cca6ed62733c3619363de52ffd9f52de98a11f3500471b
 DOCKER_RUN   = docker run --rm -v $(CURDIR):/work -w /work --user $(shell id -u):$(shell id -g) -e HOME=/tmp
 FW_BUILD     = firmware/build
+TOOLCHAIN_IMAGE = lambda-toolchain
+# Alvos que precisam do .elf usam o toolchain do host se houver; senão, o container.
+FW_TARGET    = $(if $(shell command -v arm-none-eabi-gcc),firmware,firmware-docker)
 
-.PHONY: all firmware test-unit test-unit-c test-unit-go test-sil test-integration test-renode test-renode-go test-e2e run painel painel-demo painel-captura grafico renode clean
+.PHONY: all firmware firmware-docker test-unit test-unit-c test-unit-go test-sil test-integration test-renode test-renode-go test-e2e run painel painel-demo painel-captura grafico renode clean
 
 all: firmware
 
 firmware:
+	@command -v arm-none-eabi-gcc >/dev/null || { \
+		echo "arm-none-eabi-gcc não encontrado. Instale o toolchain ARM:"; \
+		echo "  Arch:          sudo pacman -S arm-none-eabi-gcc arm-none-eabi-newlib"; \
+		echo "  Fedora:        sudo dnf install arm-none-eabi-gcc-cs arm-none-eabi-newlib"; \
+		echo "  Debian/Ubuntu: sudo apt install gcc-arm-none-eabi libnewlib-arm-none-eabi"; \
+		echo "ou compile num container: make firmware-docker"; \
+		exit 1; }
 	cmake -S firmware -B $(FW_BUILD) -DCMAKE_TOOLCHAIN_FILE=cmake/arm-none-eabi.cmake
 	cmake --build $(FW_BUILD) -j
+
+# Mesmo firmware, compilado num container (só precisa do Docker). O build fica
+# em firmware/build-docker e o .elf é copiado para $(FW_BUILD)/ecu.elf.
+firmware-docker:
+	docker build -q -t $(TOOLCHAIN_IMAGE) -f docker/Dockerfile.toolchain docker >/dev/null
+	$(DOCKER_RUN) $(TOOLCHAIN_IMAGE) sh -c '\
+		cmake -S firmware -B firmware/build-docker -DCMAKE_TOOLCHAIN_FILE=cmake/arm-none-eabi.cmake && \
+		cmake --build firmware/build-docker -j'
+	mkdir -p $(FW_BUILD)
+	cp firmware/build-docker/ecu.elf $(FW_BUILD)/ecu.elf
 
 # Testes unitários do controle em C (Unity, no host).
 test-unit-c:
@@ -41,17 +61,17 @@ test-renode-go:
 	cd go && go test -tags renode -count=1 -v ./internal/renode/ -run Renode; \
 		status=$$?; docker rm -f lambda-renode-test >/dev/null; exit $$status
 
-test-integration: firmware
+test-integration: $(FW_TARGET)
 	$(MAKE) test-sil
 	$(MAKE) test-renode
 	$(MAKE) test-renode-go
 
 # Ponta a ponta no vcan0: ECU no Renode + planta + teste Go pelo CAN.
-test-e2e: firmware
+test-e2e: $(FW_TARGET)
 	./scripts/e2e.sh
 
 # Bancada para a feira (ECU + planta no vcan0). O painel roda à parte (make painel).
-run: firmware
+run: $(FW_TARGET)
 	./scripts/bancada.sh -csv build/corrida.csv
 
 # Painel (raylib). Com a bancada no ar (make run), em outro terminal:
@@ -73,9 +93,9 @@ grafico:
 	cd go && go run ./cmd/grafico -o $(abspath $(CSV:.csv=.svg)) $(abspath $(CSV))
 
 # Renode interativo no terminal, com a ECU carregada (sem planta).
-renode: firmware
+renode: $(FW_TARGET)
 	docker run --rm -it -v $(CURDIR):/work -w /work $(RENODE_IMAGE) \
 		renode --disable-xwt --console -e "include @renode/lambda.resc; start"
 
 clean:
-	rm -rf $(FW_BUILD) firmware/tests/build build
+	rm -rf $(FW_BUILD) firmware/build-docker firmware/tests/build build

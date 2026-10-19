@@ -13,7 +13,21 @@ NAME=${BANCADA_NOME:-lambda-ecu}
 PORT=${RENODE_PORT:-1234}
 LOG=${BANCADA_LOG:-build/bancada-renode.log}
 
-[[ -f firmware/build/ecu.elf ]] || { echo "falta firmware/build/ecu.elf: rode make firmware" >&2; exit 1; }
+[[ -f firmware/build/ecu.elf ]] || { echo "falta firmware/build/ecu.elf: rode make firmware (ou make firmware-docker)" >&2; exit 1; }
+
+# Interface CAN que a planta vai usar (padrão da planta: vcan0).
+can=vcan0
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+    case ${args[i]} in
+        -can | --can) can=${args[i + 1]-} ;;
+        -can=* | --can=*) can=${args[i]#*=} ;;
+    esac
+done
+if [[ -n "$can" ]] && ! ip link show "$can" >/dev/null 2>&1; then
+    echo "interface $can não existe: rode ./scripts/setup-vcan.sh (refazer após reiniciar)" >&2
+    exit 1
+fi
 mkdir -p build "$(dirname "$LOG")"
 (cd go && go build -o ../build/planta ./cmd/planta)
 
