@@ -131,48 +131,24 @@ def texto(doc):
 
     # 2 -------------------------------------------------------------------
     a(("h1", "2 RESUMO DE SISTEMAS OPERACIONAIS"))
-    a(("p", "Um sistema operacional (SO) é a camada de software situada entre o hardware e as "
-            "aplicações. Ele cumpre dois papéis: oferecer abstrações mais simples que o hardware "
-            "(arquivos, processos, dispositivos) e gerenciar os recursos do computador, como "
-            "processador, memória, tempo e dispositivos de entrada e saída, entre programas que "
-            "competem por eles (TANENBAUM; BOS, 2016)."))
-    a(("p", "A unidade de execução gerenciada pelo SO é o processo, isto é, um programa em execução "
-            "com seu próprio espaço de endereçamento, registradores e estado. Um processo pode conter "
-            "várias threads, que compartilham a memória e são escalonadas de forma independente. O "
-            "escalonador decide qual tarefa ocupa o processador, alternando-as entre os estados "
-            "pronto, executando e bloqueado. Como tarefas concorrentes acessam dados comuns, o SO "
-            "fornece mecanismos de sincronização e comunicação, como semáforos, mutexes e filas de "
-            "mensagens, que protegem as seções críticas e evitam condições de corrida."))
-    a(("p", "O acesso aos dispositivos é feito por drivers, módulos que encapsulam os registradores e "
-            "as interrupções de cada periférico e expõem uma interface uniforme ao restante do sistema. "
-            "Em microcontroladores, esse papel costuma ser desempenhado por bibliotecas do fabricante, "
-            "como a HAL (Hardware Abstraction Layer) da STMicroelectronics usada neste projeto."))
-    a(("p", "Um sistema operacional de tempo real (RTOS) é aquele em que a correção depende não só do "
-            "resultado, mas também do instante em que ele é produzido (KOPETZ, 2011). Os prazos podem "
-            "ser rígidos (hard), quando perdê-los causa falha; firmes (firm), quando o resultado "
-            "atrasado perde o valor; ou flexíveis (soft), quando apenas degradam o desempenho. Por "
-            "isso, um RTOS privilegia o determinismo em vez da vazão média: escalonamento preemptivo "
-            "por prioridade fixa, latência de interrupção limitada, serviços de tempo de execução "
-            "previsível e pequeno consumo de memória. A análise clássica de escalonabilidade de Liu e "
-            "Layland (1973) mostra que n tarefas periódicas com prioridades atribuídas pela taxa "
-            "(menor período, maior prioridade) cumprem seus prazos se a utilização total do "
-            "processador não exceder n(2^{1/n} − 1)."))
+    a(("p", "Um sistema operacional (SO) é a camada de software que gerencia os recursos do hardware "
+            "(processador, memória, tempo e periféricos) e os oferece às aplicações por abstrações "
+            "como processos e threads. O acesso aos dispositivos é feito por drivers; em "
+            "microcontroladores, esse papel cabe a bibliotecas como a HAL do fabricante. Tarefas "
+            "concorrentes trocam dados por filas e se sincronizam por semáforos e mutexes "
+            "(TANENBAUM; BOS, 2016)."))
+    a(("p", "Em um sistema operacional de tempo real (RTOS), a resposta só é correta se produzida dentro "
+            "do prazo (KOPETZ, 2011). Por isso, o RTOS privilegia o determinismo: escalonamento "
+            "preemptivo por prioridade fixa, latência de interrupção limitada e serviços de duração "
+            "previsível. Pelo critério de Liu e Layland (1973), n tarefas periódicas com prioridade "
+            "pela taxa cumprem seus prazos se a utilização do processador não exceder "
+            "n(2^{1/n} − 1)."))
     a(("h2", "2.1 RESUMO DE IMPLEMENTAÇÃO DE UM RTOS: FREERTOS"))
-    a(("p", "O FreeRTOS é um núcleo de tempo real de código aberto (licença MIT), portado para mais de "
-            "quarenta arquiteturas e com poucos kilobytes de código (BARRY, 2016). A aplicação é "
-            "dividida em tarefas, cada uma com pilha e prioridade próprias, nos estados executando, "
-            "pronta, bloqueada ou suspensa. O escalonador é preemptivo: a tarefa pronta de maior "
-            "prioridade sempre executa, e tarefas de mesma prioridade revezam a cada tick. O tick é "
-            "uma interrupção periódica que serve de base para atrasos e temporizações, como a função "
-            "vTaskDelayUntil, que mantém um período fixo sem acumular erro."))
-    a(("p", "Para comunicação e sincronização, o FreeRTOS oferece filas (cópia de dados por valor, "
-            "seguras entre tarefas e interrupções), semáforos binários e contadores, mutexes com "
-            "herança de prioridade e notificações diretas de tarefa, uma alternativa mais leve ao "
-            "semáforo que não exige objeto adicional. Rotinas de interrupção usam as variantes "
-            "FromISR das funções e solicitam troca de contexto com portYIELD_FROM_ISR. Trechos "
-            "curtos que não podem ser interrompidos são protegidos por taskENTER_CRITICAL e "
-            "taskEXIT_CRITICAL. Neste projeto, o núcleo roda no Cortex-M0 a 48 MHz, com preempção "
-            "habilitada, tick de 1 kHz, cinco níveis de prioridade e alocador heap_4 com 7 KB."))
+    a(("p", "O FreeRTOS é um núcleo de tempo real de código aberto e poucos kilobytes (BARRY, 2016). A "
+            "aplicação é dividida em tarefas com pilha e prioridade próprias, e o escalonador sempre "
+            "executa a tarefa pronta de maior prioridade. O núcleo oferece filas, semáforos, mutexes e "
+            "notificações de tarefa, com variantes FromISR para uso em interrupções. Neste projeto, "
+            "roda no Cortex-M0 a 48 MHz, com tick de 1 kHz e alocador heap_4."))
 
     # 3 -------------------------------------------------------------------
     a(("h1", "3 DESCRIÇÃO DO PROCESSO MODELADO"))
