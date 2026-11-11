@@ -324,6 +324,12 @@ ao degrau), considerações finais e referências. 17 páginas (11 textuais). A 
 (mesmo controle C) pelo `go/cmd/grafico`. Para editar o texto, altere `gerar.py` e rode de novo
 (o sumário e as listas são numerados automaticamente).
 
+## Banner da Mostra de Projetos
+
+`docs/banner/banner.pptx` e `.pdf`, gerados por `python3 docs/banner/gerar_banner.py` a partir do
+modelo oficial (`docs/banner/modelo.pptx`). Código "CP120TIN2 - Grupo XX": falta o número do grupo.
+Custo de desenvolvimento estimado em 120 h × R$ 50/h = R$ 6.000,00 (software livre).
+
 ## Pendências para a equipe
 
 - **PR em rascunho não aberto.** O repositório só tem a branch `claude/pensive-curie-cd5dc8`
