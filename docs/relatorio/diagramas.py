@@ -165,12 +165,77 @@ def fluxo_planta(caminho):
     s.salvar(caminho)
 
 
+def sequencia(caminho):
+    s = SVG(1000, 640)
+    vidas = [("Planta (Go)", 80), ("ADC + DMA\n(TIM15)", 230), ("ISR do DMA", 370),
+             ("ControlTask\n(prior. 3)", 510), ("TIM2\n(injetor)", 650), ("CanTask\n(prior. 2)", 790),
+             ("Painel\n(vcan0)", 930)]
+    for nome, x in vidas:
+        cinza = nome.startswith(("ADC", "TIM2", "ISR"))
+        s.caixa(x - 62, 8, 124, 46, nome, fill=CINZA if cinza else "white", tam=12)
+        s.el.append(f'<line x1="{x}" y1="54" x2="{x}" y2="630" stroke="#666" stroke-width="1" '
+                    f'stroke-dasharray="5 4"/>')
+
+    def ativ(x, y0, y1):
+        s.el.append(f'<rect x="{x - 6}" y="{y0}" width="12" height="{y1 - y0}" fill="#cfcfcf" '
+                    f'stroke="#222" stroke-width="1"/>')
+
+    def msg(x0, x1, y, txt, tracejada=False):
+        dash = ' stroke-dasharray="6 4"' if tracejada else ""
+        s.el.append(f'<line x1="{x0}" y1="{y}" x2="{x1}" y2="{y}" stroke="#222" stroke-width="1.4"'
+                    f'{dash} marker-end="url(#fim)"/>')
+        s.texto((x0 + x1) / 2, y - 10, txt, 11)
+
+    def nota(x, y, w, h, txt):
+        s.caixa(x, y, w, h, txt, fill="#fffbe6", tam=11, rx=2)
+
+    msg(80, 230, 92, "tensões (lockstep, 5 ms)")
+    nota(240, 108, 122, 36, "1 conversão de 3\ncanais/ms (≈ 21 µs)")
+    msg(230, 370, 170, "fim do bloco (t = 0)")
+    ativ(370, 170, 205)
+    msg(370, 510, 205, "notificação (≤ 10 µs)")
+    ativ(510, 205, 300)
+    nota(522, 226, 118, 36, "média + tabela + PI\n≈ 160 µs")
+    msg(510, 650, 300, "período e largura (≈ 0,17 ms)")
+    msg(650, 80, 340, "largura do pulso lida no próximo lockstep", tracejada=True)
+    s.el.append('<line x1="20" y1="372" x2="990" y2="372" stroke="#999" stroke-width="1"/>')
+    s.texto(24, 386, "a cada 20 ms", 11, ancora="start")
+    ativ(790, 395, 480)
+    nota(660, 400, 120, 36, "copia o estado\n(seção crítica)")
+    msg(790, 930, 455, "0x100, 0x101 (≈ 0,25 ms cada)")
+    msg(930, 790, 505, "comando 0x200 → ISR CAN → fila", tracejada=True)
+    s.el.append('<line x1="20" y1="540" x2="990" y2="540" stroke="#999" stroke-width="1"/>')
+    s.texto(24, 554, "t = 10 ms", 11, ancora="start")
+    msg(230, 370, 580, "próximo bloco")
+    ativ(370, 580, 610)
+    msg(370, 510, 610, "notificação")
+    s.salvar(caminho)
+
+
+def terminal(txt, caminho):
+    """Saída de terminal (texto real capturado) como imagem."""
+    linhas = Path(txt).read_text(encoding="utf-8").rstrip("\n").split("\n")
+    tam, alt = 13, 17
+    w = int(max(len(l) for l in linhas) * tam * 0.61) + 28
+    s = SVG(w, len(linhas) * alt + 24)
+    s.el.append(f'<rect width="{w}" height="{s.h}" rx="8" fill="#1e1e1e"/>')
+    for i, l in enumerate(linhas):
+        cor = "#8ae234" if l.startswith("$") else "#e6e6e6"
+        l = l.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        s.el.append(f'<text x="14" y="{20 + i * alt}" font-family="DejaVu Sans Mono, monospace" '
+                    f'font-size="{tam}" fill="{cor}" xml:space="preserve">{l}</text>')
+    s.salvar(caminho)
+
+
 def gerar(pasta):
     pasta = Path(pasta)
     pasta.mkdir(exist_ok=True)
     arquitetura(pasta / "arquitetura")
     fluxo_controle(pasta / "fluxo-controle")
     fluxo_planta(pasta / "fluxo-planta")
+    sequencia(pasta / "sequencia")
+    terminal(pasta / "compilacao.txt", pasta / "compilacao")
+    terminal(pasta / "testes-renode.txt", pasta / "testes-renode")
 
 
 if __name__ == "__main__":

@@ -313,14 +313,18 @@ Verificado aqui: `make firmware` com PATH sem o toolchain → dica e erro; `make
 (1m35s a frio) → `ecu.elf` idêntico em tamanho (27420 B de texto); `make test-renode` com esse
 `.elf` → 7/7 OK; `bancada.sh` sem `vcan0` → dica e saída 1.
 
-## Trabalho escrito (AC1 revisada + AC2)
+## Trabalho escrito (documento final: AC1 + AC2 + Parte 4)
 
 `docs/relatorio/relatorio.pdf` e `.docx`, gerados por `python3 docs/relatorio/gerar.py`
 (python-docx + LibreOffice + rsvg-convert). Resumo, abstract e cap. 1 atualizados (Renode, planta
 Go, CAN, painel; sem Wokwi); capítulos novos conforme os slides da AC2: 2 sistemas operacionais,
 2.1 FreeRTOS, 3 processo modelado com fluxogramas, 3.1 cálculos de tempos e garantias,
 4 desenvolvimento (tarefas, fila, notificação, seção crítica, trechos de código, painel, resposta
-ao degrau), considerações finais e referências. 17 páginas (11 textuais). A Figura 5 vem do SIL
+ao degrau), considerações finais e referências. Parte 4: diagrama de sequência (4.2), cap. 5 Testes e
+Resultados (saída da compilação com tamanho do firmware, saída dos testes no Renode, tabela tempo
+calculado × medido, resposta ao degrau) e cap. 6 Conclusão. 20 páginas (14 textuais). As "telas"
+de terminal são trechos da saída real renderizados de `fig/compilacao.txt` e `fig/testes-renode.txt`
+por `diagramas.py`. A figura do degrau vem do SIL
 (mesmo controle C) pelo `go/cmd/grafico`. Para editar o texto, altere `gerar.py` e rode de novo
 (o sumário e as listas são numerados automaticamente).
 

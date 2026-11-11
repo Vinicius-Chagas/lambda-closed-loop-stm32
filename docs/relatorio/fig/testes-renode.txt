@@ -1,0 +1,11 @@
+$ make test-renode
+Finished test 'firmware.Deve Inicializar O Firmware' in 2.47 seconds with status OK
+Finished test 'firmware.ADC Deve Ler As Tensoes Injetadas Via DMA' in 1.24 seconds with status OK
+Finished test 'firmware.Injetor Deve Ter Um Pulso Por Ciclo Do Motor' in 2.02 seconds with status OK
+Finished test 'firmware.Malha Fechada Deve Corrigir A Mistura Ate O Limite' in 8.19 seconds with status OK
+Finished test 'firmware.ECU Deve Publicar Estado E Sensores No CAN' in 0.99 seconds with status OK
+Finished test 'firmware.ECU Deve Aceitar Comando Do Painel' in 1.16 seconds with status OK
+Finished test 'firmware.ControlTask Deve Cumprir Os Requisitos De Tempo Real' in 2.92 seconds with status OK
+{'periodo_us': 10000, 'jitter_max_us': 10, 'exec_max_us': 158, 'deadlines_perdidos': 0}
+Suite /work/renode/tests/firmware.robot finished successfully in 19.32 seconds.
+Tests finished successfully :)

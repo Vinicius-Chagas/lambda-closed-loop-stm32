@@ -208,42 +208,39 @@ def texto(doc):
         ["Malha de lambda", "Atraso de 50 a 245 ms",
          "λ = 1,00 ± 0,02 em ≤ 2 s; sobressinal ≤ 5 %", "Soft"],
     ], [4.6, 3.8, 5.0, 2.6], True))
-    a(("p", "Utilização da CPU. Com execução medida de C ≈ 0,16 ms para T = 10 ms, a tarefa de "
-            "controle ocupa U = C/T ≈ 1,6 % do processador. Mesmo supondo que a CanTask consuma 1 ms "
-            "a cada 20 ms (5 %), a utilização total (≈ 6,6 %) fica muito abaixo do limite de Liu e "
-            "Layland para duas tarefas, 2(√2 − 1) ≈ 82,8 %. As prioridades seguem a mesma regra: a "
-            "tarefa de menor período (controle, 10 ms) tem a maior prioridade."))
+    a(("p", "Tempo de execução. O Cortex-M0 não tem unidade de ponto flutuante, então cada operação "
+            "em float vira uma chamada de biblioteca (soft-float) de 50 a 100 ciclos. A contagem no "
+            "binário (arm-none-eabi-objdump) dá cerca de 90 chamadas por ativação (somas, "
+            "multiplicações, 6 divisões, comparações e conversões na média das amostras, na "
+            "interpolação da tabela e no PI), mais cerca de 700 instruções inteiras. A estimativa é "
+            "de 5 000 a 10 000 ciclos, ou C ≈ 100 a 210 µs a 48 MHz, bem abaixo da meta de 1 ms."))
+    a(("p", "Utilização da CPU. Com C ≤ 0,21 ms para T = 10 ms, a tarefa de controle ocupa no máximo "
+            "U = C/T ≈ 2,1 % do processador. Mesmo supondo que a CanTask consuma 1 ms a cada 20 ms "
+            "(5 %), a utilização total (≈ 7 %) fica muito abaixo do limite de Liu e Layland para duas "
+            "tarefas, 2(√2 − 1) ≈ 82,8 %. As prioridades seguem a mesma regra: a tarefa de menor "
+            "período (controle, 10 ms) tem a maior prioridade."))
     a(("p", "Pulso de injeção. O motor de quatro tempos injeta uma vez a cada duas voltas, logo o "
             "ciclo vale T_{ciclo} = 120/RPM: 60 ms a 2000 rpm e 20 ms a 6000 rpm. A 2000 rpm e 23 % "
             "de borboleta, t_{i} ≈ 3,5 ms (5,8 % do ciclo). No pior caso, a 6000 rpm, com borboleta "
             "toda aberta e correção de +30 %, t_{i} ≈ 12,2 ms, ou 61 % do ciclo; o limite de 90 % é "
             "apenas uma proteção. O TIM2 conta a 1 MHz, então a resolução de 1 µs corresponde a "
             "menos de 0,04 % do combustível injetado, desprezível diante da faixa de ±2 % em λ."))
-    a(("p", "Latência e barramento. O valor aplicado ao injetor é a média das amostras dos últimos "
-            "10 ms e é atualizado no TIM2 em até jitter + execução (≈ 0,17 ms) após o fim do bloco. "
-            "A 500 kbit/s, um quadro CAN de 8 bytes ocupa cerca de 0,25 ms; com três a quatro "
-            "quadros a cada 20 ms, a carga do barramento fica abaixo de 5 %."))
+    a(("p", "Latência e barramento. Com o ADC a 12 MHz e 84 ciclos por canal (71,5 de amostragem), "
+            "cada conversão de três canais leva ≈ 21 µs. O valor aplicado ao injetor é a média das "
+            "amostras dos últimos 10 ms e chega ao TIM2 em até latência de notificação + execução "
+            "(≈ 0,1 a 0,25 ms) após o fim do bloco. A 500 kbit/s, um quadro CAN de 8 bytes ocupa "
+            "cerca de 0,25 ms; com três a quatro quadros a cada 20 ms, a carga do barramento fica "
+            "abaixo de 5 %."))
     a(("p", "Medição. A ECU registra, com um temporizador de 1 µs (TIM7), o instante de liberação de "
             "cada bloco e o início e o fim de cada ativação. Desses instantes saem o período, o "
             "jitter (desvio do período nominal), o tempo de execução e os prazos perdidos (ativações "
-            "acumuladas ou término após o próximo bloco), publicados no quadro CAN 0x110. Os tempos "
-            "são do relógio virtual do Renode, que não reproduz ciclo a ciclo o processador real. A "
-            "Tabela 3 compara as metas com os valores medidos."))
-    a(("tabela", "Metas de tempo real e valores medidos",
-       ["Métrica", "Meta", "Medido", "Ensaio"], [
-        ["Período da ControlTask", "10 ms", "10 000 µs", "Renode e ponta a ponta"],
-        ["Jitter da ControlTask", "≤ 100 µs", "1 a 10 µs", "Renode e ponta a ponta"],
-        ["Execução da ControlTask", "≤ 1 ms", "158 a 161 µs", "Renode e ponta a ponta"],
-        ["Prazos perdidos", "0", "0", "Renode e ponta a ponta"],
-        ["Resolução do pulso", "1 µs", "1 µs", "Renode"],
-        ["Acomodação (bico −20 %, 2000 rpm)", "≤ 2 s", "1,30 s", "Ponta a ponta"],
-        ["Sobressinal", "≤ 5 %", "0 %", "Ponta a ponta"],
-    ], [5.4, 2.6, 3.0, 5.0], True))
+            "acumuladas ou término após o próximo bloco), publicados no quadro CAN 0x110. A "
+            "comparação com as estimativas acima está no capítulo 5."))
 
     # 4 -------------------------------------------------------------------
     a(("h1", "4 DESENVOLVIMENTO"))
     a(("h2", "4.1 TAREFAS E RECURSOS DO FREERTOS"))
-    a(("p", "O firmware tem duas tarefas e duas rotinas de interrupção relevantes (Tabela 4). A "
+    a(("p", "O firmware tem duas tarefas e duas rotinas de interrupção relevantes (Tabela 3). A "
             "ControlTask é acordada por notificação de tarefa, usada como um semáforo contador leve: "
             "a interrupção do DMA incrementa o contador e a tarefa o consome com ulTaskNotifyTake. Se "
             "o valor lido for maior que 1, houve ativações acumuladas, que são contadas como prazos "
@@ -264,7 +261,16 @@ def texto(doc):
          "Publicar estado e tempos; tratar comandos; log serial"],
         ["Idle", "0", "Tempo livre", "-", "Tarefa ociosa do núcleo"],
     ], [2.8, 2.3, 2.6, 4.5, 3.8], True))
-    a(("h2", "4.2 TRECHOS DO CÓDIGO-FONTE"))
+    a(("h2", "4.2 DIAGRAMA DE SEQUÊNCIA"))
+    a(("p", "A Figura 4 mostra a troca de mensagens em um período de controle, com os tempos "
+            "estimados na seção 3.1. A planta escreve as tensões a cada 5 ms; o TIM15 dispara uma "
+            "conversão por milissegundo e o DMA guarda as amostras. No fim do bloco de 10 conjuntos "
+            "(t = 0), a interrupção do DMA notifica a ControlTask, que calcula a média, consulta a "
+            "tabela, executa o PI e programa o TIM2. A CanTask, de menor prioridade, roda a cada "
+            "20 ms nos intervalos livres, copia o estado em seção crítica e publica os quadros; os "
+            "comandos do painel chegam pela interrupção CAN e esperam na fila."))
+    a(("fig", "Diagrama de sequência de um período de controle", FIG / "sequencia.png", 16.0))
+    a(("h2", "4.3 TRECHOS DO CÓDIGO-FONTE"))
     a(("p", "O Código 1 mostra a passagem da interrupção do DMA para a tarefa de controle. O período "
             "da tarefa é imposto pelo hardware, e não por um atraso de software, o que elimina a "
             "deriva entre a amostragem e o cálculo."))
@@ -321,33 +327,69 @@ for(;;) {
     b.wg.Wait()                     // barreira: todos leram o passo
     return append([]float64(nil), b.out...)
 }"""))
-    a(("h2", "4.3 INTERFACE, TESTES E PRIMEIROS RESULTADOS"))
-    a(("p", "O painel (Figura 4), escrito em Go com a biblioteca gráfica raylib, ocupa uma única tela "
+    a(("h2", "4.4 INTERFACE"))
+    a(("p", "O painel (Figura 5), escrito em Go com a biblioteca gráfica raylib, ocupa uma única tela "
             "e lê o barramento CAN. Ele mostra uma barra de mistura rica/ideal/pobre com o valor de λ, "
             "a rotação, o tempo de injeção, a correção do PI, o modo da malha e um gráfico de λ nos "
             "últimos 10 s. Pelo teclado, o visitante acelera o motor, aplica as perturbações de bico "
             "e de vazamento e alterna entre malha aberta e fechada."))
     a(("fig", "Painel do operador", RAIZ / "docs" / "painel.png", 13.0))
+
+    # 5 -------------------------------------------------------------------
+    a(("h1", "5 TESTES E RESULTADOS"))
+    a(("h2", "5.1 COMPILAÇÃO"))
+    a(("p", "O firmware é compilado com o GCC 13.2.1 (arm-none-eabi), otimização -O2, pelo comando "
+            "make firmware. A Figura 6 mostra o final da saída: o binário ocupa 27 524 bytes de "
+            "flash (21 % dos 128 KB) e 9 672 bytes de RAM (59 % dos 16 KB). Da RAM, 7 KB são o heap "
+            "do FreeRTOS, onde ficam as pilhas das tarefas e a fila CAN."))
+    a(("fig", "Saída da compilação com o tamanho do firmware (trecho)", FIG / "compilacao.png", 15.5))
+    a(("h2", "5.2 TESTES"))
     a(("p", "A verificação foi feita em três níveis, todos executados automaticamente a cada envio ao "
             "repositório. Nos testes unitários, o controle em C é testado com o framework Unity, e a "
             "planta, com testes Go. Na integração, o mesmo código C do controle roda dentro da planta "
             "Go (software-in-the-loop), e o firmware completo roda no Renode com casos em Robot "
-            "Framework. No teste ponta a ponta, ECU, planta e testes conversam pelo vcan0. A Figura 5 "
-            "mostra a resposta a uma redução de 20 % na vazão do bico a 2000 rpm: a mistura empobrece "
-            "após o atraso do escapamento, o PI eleva o tempo de injeção em cerca de 25 % e λ volta à "
-            "faixa de ±0,02 em 1,3 s, sem sobressinal."))
+            "Framework (Figura 7): inicialização, leitura do ADC por DMA, pulso do injetor, malha "
+            "fechada, CAN e requisitos de tempo real. No teste ponta a ponta, ECU, planta e testes "
+            "conversam pelo vcan0. Como não há kit na apresentação, a bancada roda no próprio "
+            "notebook (make run e make painel), e um vídeo gravado do painel serve de reserva."))
+    a(("fig", "Testes do firmware no Renode (trecho da saída)", FIG / "testes-renode.png", 15.5))
+    a(("h2", "5.3 TEMPO CALCULADO × TEMPO MEDIDO"))
+    a(("p", "A Tabela 4 compara as estimativas da seção 3.1 com os valores medidos pelo TIM7, seguindo "
+            "a ordem do diagrama de sequência (Figura 4): conversão, notificação, execução da "
+            "ControlTask e atualização do TIM2."))
+    a(("tabela", "Tempos calculados, metas e valores medidos",
+       ["Grandeza", "Calculado", "Meta", "Medido"], [
+        ["Conversão de 3 canais (ADC)", "≈ 21 µs", "< 1 ms", "Por hardware"],
+        ["Período da ControlTask", "10 ms", "10 ms", "10 000 µs"],
+        ["Jitter (atraso da notificação)", "≈ 5 a 10 µs", "≤ 100 µs", "1 a 10 µs"],
+        ["Execução da ControlTask", "100 a 210 µs", "≤ 1 ms", "158 a 161 µs"],
+        ["Fim do bloco → TIM2", "≈ 0,1 a 0,25 ms", "≤ 10 ms", "≈ 0,17 ms"],
+        ["Utilização da CPU (controle)", "1,0 a 2,1 %", "-", "1,6 %"],
+        ["Prazos perdidos", "0", "0", "0"],
+    ], [5.4, 3.6, 2.8, 4.2], True))
+    a(("p", "O tempo medido de 158 µs equivale a cerca de 7 600 ciclos a 48 MHz e cai no meio da faixa "
+            "calculada. Os tempos vêm do relógio virtual do Renode, que conta uma instrução por ciclo. "
+            "No chip real, os estados de espera da flash e as instruções de vários ciclos devem tornar "
+            "a execução de 20 a 50 % mais lenta, ainda abaixo de 0,25 ms, ou seja, a folga para o "
+            "prazo de 10 ms continua acima de 97 %."))
+    a(("h2", "5.4 RESPOSTA DA MALHA"))
+    a(("p", "A Figura 8 mostra a resposta a uma redução de 20 % na vazão do bico a 2000 rpm: a mistura "
+            "empobrece após o atraso do escapamento, o PI eleva o tempo de injeção em cerca de 25 % e "
+            "λ volta à faixa de ±0,02 em 1,3 s, sem sobressinal, dentro das metas de 2 s e 5 %."))
     a(("fig", "Resposta a uma redução de 20 % na vazão do bico (2000 rpm, malha fechada)",
        FIG / "degrau.png", 13.5))
 
-    # 5 -------------------------------------------------------------------
-    a(("h1", "5 CONSIDERAÇÕES FINAIS"))
-    a(("p", "A bancada atingiu as metas propostas: a tarefa de controle cumpriu o período de 10 ms "
-            "com folga de mais de 98 % do processador e jitter dez vezes menor que o limite, e a "
-            "malha corrigiu as perturbações em menos de 2 s. A separação entre amostragem por "
+    # 6 -------------------------------------------------------------------
+    a(("h1", "6 CONCLUSÃO"))
+    a(("p", "A bancada atingiu as metas propostas. A tarefa de controle cumpriu o período de 10 ms "
+            "sem perder prazos, com jitter dez vezes menor que o limite, e o tempo de execução medido "
+            "(158 µs) confirmou a estimativa feita pela contagem de operações (100 a 210 µs), deixando "
+            "mais de 98 % do processador livre. A malha corrigiu as perturbações em 1,3 s, sem "
+            "sobressinal, e o firmware ocupa apenas 21 % da flash. A separação entre amostragem por "
             "hardware, tarefa de controle acordada por notificação e comunicação em tarefa de menor "
             "prioridade manteve o caminho crítico curto e previsível. Como limitação, os tempos foram "
-            "medidos no relógio virtual do emulador; a próxima etapa natural é gravar o mesmo binário "
-            "em uma placa STM32 e repetir as medições com instrumentos reais."))
+            "medidos no relógio virtual do emulador; a próxima etapa é gravar o mesmo binário em uma "
+            "placa STM32 e repetir as medições com instrumentos reais."))
 
     a(("ref", [
         "BARRY, R. *Mastering the FreeRTOS real time kernel*: a hands-on tutorial guide. "

@@ -1,0 +1,21 @@
+$ make firmware
+-- The C compiler identification is GNU 13.2.1
+-- The ASM compiler identification is GNU
+...
+-- Configuring done (6.6s)
+-- Generating done (0.0s)
+-- Build files have been written to: firmware/build
+[  2%] Building C object .../stm32f0xx_hal_dma.c.obj
+[  4%] Building C object .../stm32f0xx_hal.c.obj
+...  (42 arquivos compilados ao todo)
+[ 90%] Building C object control/fuel_map.c.obj
+[ 93%] Building C object control/sensors.c.obj
+[ 95%] Building C object control/timing_stats.c.obj
+[ 97%] Building ASM object third_party/cmsis_device_f0/Source/startup_stm32f072xb.s.obj
+[100%] Linking C executable ecu.elf
+Memory region         Used Size  Region Size  %age Used
+             RAM:        9672 B        16 KB     59.03%
+           FLASH:       27524 B       128 KB     21.00%
+   text    data     bss     dec     hex filename
+  27420     104    9576   37100    90ec ecu.elf
+[100%] Built target ecu.elf
